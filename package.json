@@ -1,0 +1,19 @@
+{
+  "name": "strava-training-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,worker \"npm:dev:web\" \"npm:dev:worker\"",
+    "dev:web": "npm -w @app/web run dev",
+    "dev:worker": "npm -w @app/worker run dev",
+    "build": "npm -ws run build",
+    "typecheck": "npm -ws run typecheck",
+    "lint": "npm -ws run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

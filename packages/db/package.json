@@ -1,0 +1,9 @@
+{
+  "name": "@pkg/db",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "lint": "echo \"(add later)\"",
+    "typecheck": "echo \"(add later)\""
+  }
+}
