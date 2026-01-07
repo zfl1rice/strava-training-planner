@@ -1,1 +1,1 @@
-# tri_coach
+# strava-training-planner
