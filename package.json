@@ -11,9 +11,15 @@
     "dev:worker": "npm -w @app/worker run dev",
     "build": "npm -ws run build",
     "typecheck": "npm -ws run typecheck",
-    "lint": "npm -ws run lint"
+    "lint": "npm -ws run lint",
+    "db:migrate": "npm -w @pkg/db exec prisma migrate dev",
+    "db:studio": "npm -w @pkg/db exec prisma studio",
+    "db:reset": "npm -w @pkg/db exec -- prisma migrate reset",
+    "db:recreate": "docker compose down -v && docker compose up -d"
+
   },
   "devDependencies": {
-    "concurrently": "^9.0.0"
+    "concurrently": "^9.0.0",
+    "dotenv": "^17.2.3"
   }
 }

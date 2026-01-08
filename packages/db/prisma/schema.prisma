@@ -1,0 +1,87 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  createdAt  DateTime   @default(now())
+  email      String     @unique
+  name       String?
+  role       Role       @default(USER)
+
+  activities Activity[]
+  jobRuns    JobRun[]
+}
+
+model Activity {
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  user            User           @relation(fields: [userId], references: [id])
+
+  type            ActivityType
+  startedAt       DateTime
+  durationSeconds Int
+  distanceMeters  Int?
+  elevationMeters Int?
+
+  load            Int?
+  relativeEffort  Int?
+
+  source          ActivitySource @default(STRAVA)
+  stravaActivityId BigInt?       @unique
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([userId, startedAt])
+}
+
+model JobRun {
+  id         Int        @id @default(autoincrement())
+  createdAt  DateTime   @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+  status     JobStatus  @default(PENDING)
+  error      String?
+
+  jobType    SyncJobType @default(STRAVA_SYNC)
+
+  userId     Int
+  user       User        @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+enum ActivityType {
+  BIKE
+  RUN
+  SWIM
+  OTHER
+}
+
+enum ActivitySource {
+  STRAVA
+  MANUAL
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum SyncJobType {
+  STRAVA_SYNC
+  COMPUTE_PLAN
+}
+
+enum Role {
+  USER
+  ADMIN
+}
