@@ -6,20 +6,29 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n web,worker \"npm:dev:web\" \"npm:dev:worker\"",
+    "dev": "concurrently -n web,worker \"npm run dev --workspace @app/web\" \"npm run dev --workspace @app/worker\"",
     "dev:web": "npm -w @app/web run dev",
     "dev:worker": "npm -w @app/worker run dev",
-    "build": "npm -ws run build",
-    "typecheck": "npm -ws run typecheck",
+    "build": "npm run build:packages && npm run build --workspace @app/worker && npm run build --workspace @app/web",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces",
     "lint": "npm -ws run lint",
     "db:migrate": "npm -w @pkg/db exec prisma migrate dev",
     "db:studio": "npm -w @pkg/db exec prisma studio",
     "db:reset": "npm -w @pkg/db exec -- prisma migrate reset",
-    "db:recreate": "docker compose down -v && docker compose up -d"
-
+    "db:recreate": "docker compose down -v && docker compose up -d",
+    "build:packages": "npm run build --workspace @pkg/shared && npm run build --workspace @pkg/db",
+    "predev": "npm run build:packages",
+    "predev:web": "npm run build:packages",
+    "predev:worker": "npm run build:packages",
+    "test:ping": "node scripts/smoke-ping.mjs",
+    "test:strava": "npm run build:packages && node scripts/test-strava.mjs",
+    "db:generate": "npm exec --workspace @pkg/db -- prisma generate",
+    "db:deploy": "npm exec --workspace @pkg/db -- prisma migrate deploy"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3",
+    "tsx": "^4.0.0"
   }
 }

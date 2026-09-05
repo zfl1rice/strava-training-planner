@@ -4,11 +4,12 @@
   "version": "0.0.0",
   "scripts": {
     "lint": "echo \"(add later)\"",
-    "typecheck": "echo \"(add later)\"",
     "build": "tsc -p tsconfig.json",
-    "build:watch": "tsc -p tsconfig.json --watch"
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@pkg/shared": "*",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
     "pg": "^8.16.3"

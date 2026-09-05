@@ -1,11 +1,26 @@
 {
   "name": "@pkg/shared",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "type": "module",
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./strava": {
+      "types": "./dist/strava.d.ts",
+      "import": "./dist/strava.js"
+    }
+  },
   "scripts": {
-    "lint": "echo \"(add later)\"",
-    "typecheck": "echo \"(add later)\""
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3"
   }
 }

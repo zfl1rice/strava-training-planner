@@ -6,12 +6,20 @@
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "lint": "echo \"(add eslint later)\"",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@pkg/db": "*",
+    "@pkg/shared": "*",
+    "bullmq": "^5.66.4",
+    "ioredis": "^5.9.1",
+    "dotenv": "^17.2.3"
+  }
 }
