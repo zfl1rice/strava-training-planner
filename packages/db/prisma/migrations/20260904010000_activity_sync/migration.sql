@@ -1,0 +1,3 @@
+ALTER TABLE "StravaConnection" ADD COLUMN "lastSuccessfulSyncAt" TIMESTAMP(3);
+ALTER TABLE "Activity" ADD COLUMN "name" TEXT;
+ALTER TABLE "JobRun" ADD COLUMN "activityCount" INTEGER NOT NULL DEFAULT 0;

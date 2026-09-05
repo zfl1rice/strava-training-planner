@@ -18,6 +18,41 @@ export const StravaAuthorizationSchema = StravaTokensSchema.extend({
 export type StravaTokens = z.infer<typeof StravaTokensSchema>;
 export type StravaAuthorization = z.infer<typeof StravaAuthorizationSchema>;
 
+export const StravaActivitySchema = z.object({
+  id: z.number().int().positive().safe(),
+  athlete: z.object({ id: z.number().int().positive().safe() }),
+  name: z.string(),
+  sport_type: z.string().optional(),
+  type: z.string(),
+  start_date: z.string().datetime({ offset: true }),
+  moving_time: z.number().int().nonnegative().max(2147483647),
+  distance: z.number().finite().nonnegative().max(2147483647),
+  total_elevation_gain: z.number().finite().nonnegative().max(2147483647).optional(),
+});
+export const StravaActivitiesSchema = z.array(StravaActivitySchema);
+export type StravaActivity = z.infer<typeof StravaActivitySchema>;
+
+export type SyncDashboard = {
+  lastSuccessfulSyncAt: string | null;
+  latestSync: {
+    id: number;
+    status: string;
+    activityCount: number;
+    error: string | null;
+    createdAt: string;
+    finishedAt: string | null;
+  } | null;
+  activities: {
+    id: number;
+    name: string | null;
+    type: string;
+    startedAt: string;
+    durationSeconds: number;
+    distanceMeters: number | null;
+    stravaActivityId: string | null;
+  }[];
+};
+
 export function parseStravaScopes(value: string): string[] {
   return [...new Set(value.split(/[\s,]+/).filter(Boolean))].sort();
 }

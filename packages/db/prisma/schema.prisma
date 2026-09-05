@@ -27,6 +27,7 @@ model StravaConnection {
   refreshToken String
   expiresAt    DateTime
   scopes       String[]
+  lastSuccessfulSyncAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -50,6 +51,7 @@ model OAuthState {
 
 model Activity {
   id              Int            @id @default(autoincrement())
+  name            String?
   userId          Int
   user            User           @relation(fields: [userId], references: [id])
 
@@ -78,6 +80,7 @@ model JobRun {
   finishedAt DateTime?
   status     JobStatus  @default(PENDING)
   error      String?
+  activityCount Int     @default(0)
 
   jobType    SyncJobType @default(STRAVA_SYNC)
 

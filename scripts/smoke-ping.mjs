@@ -5,8 +5,9 @@ import { JOBS, QUEUES, bullConnectionFromUrl } from "@pkg/shared";
 
 config({ path: new URL("../.env", import.meta.url), quiet: true });
 const connection = bullConnectionFromUrl(process.env.REDIS_URL);
-const queue = new Queue(QUEUES.jobs, { connection });
-const events = new QueueEvents(QUEUES.jobs, { connection });
+const prefix = process.env.BULLMQ_PREFIX ?? "bull";
+const queue = new Queue(QUEUES.jobs, { connection, prefix });
+const events = new QueueEvents(QUEUES.jobs, { connection, prefix });
 const baseUrl = process.env.WEB_URL ?? "http://localhost:3000";
 const timeout = setTimeout(() => {
   console.error("Ping smoke test timed out; check Redis, web, and worker.");

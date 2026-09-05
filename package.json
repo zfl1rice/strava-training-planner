@@ -22,6 +22,7 @@
     "predev:worker": "npm run build:packages",
     "test:ping": "node scripts/smoke-ping.mjs",
     "test:strava": "npm run build:packages && node scripts/test-strava.mjs",
+    "test:sync": "npm run build:packages && npm run build --workspace @app/worker && node scripts/test-strava.mjs sync",
     "db:generate": "npm exec --workspace @pkg/db -- prisma generate",
     "db:deploy": "npm exec --workspace @pkg/db -- prisma migrate deploy"
   },

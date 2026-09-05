@@ -5,6 +5,7 @@ import { config } from "dotenv";
 import pg from "pg";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const syncTests = process.argv[2] === "sync";
 config({ path: new URL("../.env", import.meta.url), quiet: true });
 if (!process.env.DATABASE_URL) throw new Error("Configure DATABASE_URL first");
 const databaseName = `planner_oauth_test_${randomBytes(8).toString("hex")}`;
@@ -15,6 +16,7 @@ const env = {
   ...process.env,
   DATABASE_URL: databaseUrl.toString(),
   OAUTH_TEST_DATABASE: databaseName,
+  BULLMQ_PREFIX: databaseName,
   STRAVA_CLIENT_ID: "12345",
   STRAVA_CLIENT_SECRET: "test-only-client-secret",
   STRAVA_REDIRECT_URI: "http://localhost:3000/api/strava/callback",
@@ -31,7 +33,7 @@ try {
   ], { cwd: fileURLToPath(new URL("../packages/db/", import.meta.url)), env, stdio: "inherit", timeout: 60000, windowsHide: true });
   if (migration.error || migration.status !== 0) throw new Error("Test database migration failed");
   const tests = spawnSync(process.execPath, [
-    "--import", "tsx", "--test", "--test-concurrency=1", "tests/strava-oauth.test.mjs",
+    "--import", "tsx", "--test", "--test-concurrency=1", syncTests ? "tests/activity-sync.test.mjs" : "tests/strava-oauth.test.mjs",
   ], { cwd: root, env, stdio: "inherit", timeout: 90000, windowsHide: true });
   process.exitCode = tests.status ?? 1;
   if (tests.error) console.error(tests.error.message);

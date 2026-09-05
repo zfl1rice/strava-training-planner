@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { getStravaConnectionStatus } from "@pkg/db";
+import { getStravaConnectionStatus, getSyncDashboard } from "@pkg/db";
+import ActivityDashboard from "./activity-dashboard";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +24,13 @@ export default async function Home({ searchParams }: {
   try { getStravaConfig(); } catch { configured = false; }
   let user = null;
   let connection = null;
+  let dashboard = null;
   let storageError = false;
   try {
     const cookieStore = await cookies();
     user = await userFromSession(cookieStore.get(SESSION_COOKIE)?.value);
     if (user) connection = await getStravaConnectionStatus(user.id);
+    if (user && connection) dashboard = await getSyncDashboard(user.id);
   } catch { storageError = true; }
   const message = params.strava ? messages[params.strava] : undefined;
 
@@ -50,8 +53,8 @@ export default async function Home({ searchParams }: {
             {connection ? "Reconnect Strava" : "Connect Strava"}
           </button>
         </form>
-        <p className="text-sm">Activity syncing and weekly training plans are coming next.</p>
       </section>
+      {dashboard && <ActivityDashboard initialData={dashboard} />}
     </main>
   );
 }

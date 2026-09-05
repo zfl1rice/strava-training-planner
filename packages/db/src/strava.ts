@@ -78,13 +78,16 @@ export async function getStravaConnectionStatus(userId: number) {
 export async function getValidStravaAccessToken(
   userId: number,
   refresh: (refreshToken: string) => Promise<StravaTokens>,
+  rejectedAccessToken?: string,
 ): Promise<string> {
   return prisma.$transaction(async (tx) => {
     // Reload after obtaining the row lock so competing refreshes use the latest token.
     await tx.$queryRaw`SELECT "userId" FROM "StravaConnection" WHERE "userId" = ${userId} FOR UPDATE`;
     const connection = await tx.stravaConnection.findUnique({ where: { userId } });
     if (!connection) throw new Error("Strava is not connected");
-    if (connection.expiresAt.getTime() > Date.now() + 60000) return connection.accessToken;
+    if (connection.expiresAt.getTime() > Date.now() + 60000 && connection.accessToken !== rejectedAccessToken) {
+      return connection.accessToken;
+    }
     const tokens = await refresh(connection.refreshToken);
     if (tokens.expires_at * 1000 <= Date.now()) throw new Error("Strava returned an expired token");
     await tx.stravaConnection.update({ where: { userId }, data: {

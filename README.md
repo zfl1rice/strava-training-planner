@@ -74,6 +74,55 @@ passing `refreshStravaTokens` from the server-only `@pkg/shared/strava` entry po
 The OAuth API implementation follows
 [Strava's authentication documentation](https://developers.strava.com/docs/authentication/).
 
+## Sync activities
+
+After connecting Strava, click **Sync Activities** on the home page. Keep both
+web and worker running with `npm run dev`. Restart that command after pulling
+worker changes (the worker development script does not watch files).
+
+For an existing checkout, apply the new migration before starting:
+
+```powershell
+npm run db:generate
+npm run db:deploy
+npm run dev
+```
+
+The button requests `POST /api/strava/sync`. The endpoint derives the user from
+the session, records a sync in Postgres, and enqueues only `{ jobRunId }`.
+Concurrent clicks reuse the active sync. The worker refreshes tokens when
+needed, fetches pages of activities, and upserts by unique Strava activity ID.
+Web and worker remain separate applications with no imports between them.
+
+Each sync covers the **last 90 days**, with its time window fixed at enqueue
+time. Repeating a sync updates those activities without creating duplicates.
+It does not remove activities deleted on Strava or fetch older history.
+Duration uses Strava moving time; distance/elevation are rounded to whole meters
+to match the existing database schema. The dashboard shows the most recent 30
+stored activities and dates in UTC.
+
+Progress and the last successful sync time come from Postgres through
+`GET /api/strava/sync`. The page polls while a job is queued or running. Failed
+syncs keep the previous success timestamp and any pages already persisted.
+Retrying safely replays the fixed window. Transient failures get up to five
+total attempts with exponential backoff; 429 responses respect Retry-After or
+Strava's quarter-hour/daily reset. Access rejections prompt reconnection.
+
+```powershell
+npm run test:sync
+```
+
+Sync integration tests use real Redis/BullMQ and an isolated temporary Postgres
+database with simulated Strava responses. A random Redis prefix isolates the
+test jobs from your running worker. They cover pagination, duplicate clicks,
+upserts, empty history, refresh, transient/permanent failures, rate limits,
+activity validation, and session isolation. Keep Docker Postgres and Redis
+running. Optional `BULLMQ_PREFIX` must match in web and worker if you configure it;
+normal local use needs no prefix setting.
+
+API behavior follows the [Strava activity reference](https://developers.strava.com/docs/reference/#api-Activities-getLoggedInAthleteActivities)
+and [rate-limit documentation](https://developers.strava.com/docs/rate-limits/).
+
 ## Typed PingJob
 
 Run commands from the repository root (the directory containing this file).
