@@ -1,12 +1,12 @@
+import { checkPostgresHealth, checkRedisHealth } from "@/lib/health";
+
+export const dynamic = "force-dynamic";
+
 export default async function HealthPage() {
-  const res = await fetch("http://localhost:3000/api/health", {
-    cache: "no-store",
-  });
-  const data = await res.json();
-  console.log("DATABASE_URL present?", Boolean(process.env.DATABASE_URL));
+  const [postgres, redis] = await Promise.all([checkPostgresHealth(), checkRedisHealth()]);
   return (
     <pre style={{ padding: 16 }}>
-      {JSON.stringify(data, null, 2)}
+      {JSON.stringify({ ok: postgres.ok && redis.ok, postgres, redis }, null, 2)}
     </pre>
   );
 }

@@ -1,23 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SYNC_HISTORY_DAYS, type SyncDashboard } from "@pkg/shared";
+import { SYNC_HISTORY_DAYS, type SyncDashboard, type PlannerState } from "@pkg/shared";
+import WeeklyTraining from "./training-summary";
+import WeeklyPlanner from "./weekly-planner";
 
-const dateLabel = (date: string) => new Date(date).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+const formatUtcTimestamp = (date: string) => new Date(date).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
-export default function ActivityDashboard({ initialData }: { initialData: SyncDashboard }) {
+export default function ActivityDashboard({ initialData, initialPlanner }: { initialData: SyncDashboard; initialPlanner: PlannerState }) {
   const [data, setData] = useState(initialData);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const active = data.latestSync?.status === "PENDING" || data.latestSync?.status === "RUNNING";
+  const syncActive = data.latestSync?.status === "PENDING" || data.latestSync?.status === "RUNNING";
 
   useEffect(() => {
-    if (!active) return;
+    if (!syncActive) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
       try {
-        const response = await fetch("/api/strava/sync", { cache: "no-store", signal: controller.signal });
+        const response = await fetch("/api/strava/sync", {
+          cache: "no-store",
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
+        });
         if (!response.ok) throw new Error("Could not refresh sync progress. Please reload if this continues.");
         setData(await response.json());
         setError(null);
@@ -29,9 +34,9 @@ export default function ActivityDashboard({ initialData }: { initialData: SyncDa
     }
     timer = setTimeout(() => void poll(), 1000);
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [active]);
+  }, [syncActive]);
 
-  async function sync() {
+  async function startActivitySync() {
     setSubmitting(true);
     setError(null);
     try {
@@ -50,18 +55,21 @@ export default function ActivityDashboard({ initialData }: { initialData: SyncDa
 
   const status = data.latestSync?.status;
   return (
+    <>
+    <WeeklyTraining summary={data.trainingSummary} />
+    <WeeklyPlanner initialData={initialPlanner} syncActive={syncActive || submitting} />
     <section className="space-y-5 rounded-lg border p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold">Activities</h2>
-        <button onClick={() => void sync()} disabled={submitting || active}
+        <button onClick={() => void startActivitySync()} disabled={submitting || syncActive}
           className="rounded bg-orange-600 px-4 py-2 font-medium text-white disabled:opacity-50">
-          {submitting ? "Starting..." : active ? "Syncing..." : "Sync Activities"}
+          {submitting ? "Starting..." : syncActive ? "Syncing..." : "Sync Activities"}
         </button>
       </div>
       <p className="text-sm">Syncs the last {SYNC_HISTORY_DAYS} days from Strava. Repeated syncs update existing activities.</p>
-      <p>Last successful sync: {data.lastSuccessfulSyncAt ? dateLabel(data.lastSuccessfulSyncAt) : "Not synced yet"}</p>
+      <p>Last successful sync: {data.lastSuccessfulSyncAt ? formatUtcTimestamp(data.lastSuccessfulSyncAt) : "Not synced yet"}</p>
       <div role="status" aria-live="polite">
-        {status === "PENDING" && <p>{data.latestSync?.error ?? "Queued. Waiting for sync to start."}</p>}
+        {status === "PENDING" && <p>{data.latestSync?.error ?? "Sync requested. Waiting for it to start or resume automatically."}</p>}
         {status === "RUNNING" && <p>Syncing: {data.latestSync?.activityCount} activities processed...</p>}
         {status === "SUCCESS" && <p>Sync complete: {data.latestSync?.activityCount} activities processed.</p>}
         {status === "FAILED" && <p>{data.latestSync?.error ?? "Sync failed. Please try again."}</p>}
@@ -87,5 +95,6 @@ export default function ActivityDashboard({ initialData }: { initialData: SyncDa
         </div>
       )}
     </section>
+    </>
   );
 }

@@ -5,6 +5,12 @@ import { getPingQueue, waitForQueue } from "@/lib/queue";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  // Server-only opt-in, checked before reading the body or creating a queue client.
+  if (process.env.ENABLE_PING_DIAGNOSTICS !== "true") {
+    return NextResponse.json({ ok: false, message: "Not found" }, {
+      status: 404, headers: { "Cache-Control": "no-store" },
+    });
+  }
   let input: unknown;
   try {
     const body = await request.text();

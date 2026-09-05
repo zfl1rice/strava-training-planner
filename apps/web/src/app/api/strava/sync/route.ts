@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createOrReuseSyncRun, failSyncEnqueue, getStravaConnectionStatus, getSyncDashboard } from "@pkg/db";
+import { createOrReuseSyncRun, getStravaConnectionStatus, getSyncDashboard } from "@pkg/db";
 import { JOBS, SyncAthleteJobSchema, syncJobId } from "@pkg/shared";
 import { getSyncQueue, waitForQueue } from "@/lib/queue";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
@@ -28,15 +28,18 @@ export async function POST(request: NextRequest) {
     const user = await userFromSession(request.cookies.get(SESSION_COOKIE)?.value);
     if (!user) return json({ error: "Connect Strava first" }, 401);
     if (!await getStravaConnectionStatus(user.id)) return json({ error: "Reconnect Strava first" }, 409);
+    const syncRun = await createOrReuseSyncRun(user.id);
+    jobRunId = syncRun.id;
     const queue = getSyncQueue();
     await waitForQueue(queue);
-    const run = await createOrReuseSyncRun(user.id);
-    jobRunId = run.id;
     const payload = SyncAthleteJobSchema.parse({ jobRunId });
     await queue.add(JOBS.syncAthlete, payload, { jobId: syncJobId(jobRunId) });
     return json({ ok: true, jobRunId }, 202);
   } catch {
-    if (jobRunId !== undefined) await failSyncEnqueue(jobRunId).catch(() => {});
+    // A committed intent remains pending even if Redis rejected the write or its
+    // acknowledgement was lost. The worker reconciles it; duplicate callers must
+    // never mark another caller's successfully enqueued job as failed.
+    if (jobRunId !== undefined) return json({ ok: true, jobRunId, recoveryPending: true }, 202);
     return json({ error: "Could not queue activities. Please try again." }, 503);
   }
 }

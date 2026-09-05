@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TrainingSummary } from "./training.js";
 
 export const StravaTokensSchema = z.object({
   access_token: z.string().min(1),
@@ -33,6 +34,7 @@ export const StravaActivitiesSchema = z.array(StravaActivitySchema);
 export type StravaActivity = z.infer<typeof StravaActivitySchema>;
 
 export type SyncDashboard = {
+  trainingSummary: TrainingSummary;
   lastSuccessfulSyncAt: string | null;
   latestSync: {
     id: number;

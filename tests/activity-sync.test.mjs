@@ -3,10 +3,11 @@ import { once } from "node:events";
 import { after, beforeEach, mock, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { Queue, QueueEvents, Worker, Job } from "bullmq";
-import { prisma, createOrReuseSyncRun } from "@pkg/db";
+import { prisma, createOrReuseSyncRun, startSyncRun, saveActivityPage, finishSyncRun, recordSyncFailure, renewSyncLease, SyncLeaseLostError } from "@pkg/db";
 import { bullConnectionFromUrl, JOBS, QUEUES, syncJobId, SyncAthleteJobSchema } from "@pkg/shared";
 import { StravaApiError, stravaRateLimitDelay } from "@pkg/shared/strava";
 import { processJob, stravaBackoff } from "../apps/worker/dist/processor.js";
+import { recoverMissingSyncJobs, startSyncRecovery } from "../apps/worker/dist/recovery.js";
 import { POST as enqueue, GET as status } from "../apps/web/src/app/api/strava/sync/route.ts";
 import { hashToken, newOpaqueToken } from "../apps/web/src/lib/strava-auth.ts";
 import { getSyncQueue } from "../apps/web/src/lib/queue.ts";
@@ -244,15 +245,222 @@ test("a missing persistent sync record is rejected without API access", async ()
   assert.equal(globalThis.fetch.mock.callCount(), 0);
 });
 
-test("enqueue failure records a failed run and permits another attempt", async () => {
+test("enqueue failure retains the committed intent for automatic recovery", async () => {
   const add = mock.method(getSyncQueue(), "add", async () => { throw new Error("Simulated enqueue failure"); });
   const response = await enqueue(request());
-  assert.equal(response.status, 503);
-  const failed = await prisma.jobRun.findFirstOrThrow();
-  assert.equal(failed.status, "FAILED");
+  assert.equal(response.status, 202);
+  assert.equal((await response.json()).recoveryPending, true);
+  const pending = await prisma.jobRun.findFirstOrThrow();
+  assert.equal(pending.status, "PENDING");
   add.mock.restore();
-  const next = await queued();
-  assert.notEqual(next.jobRunId, failed.id);
+  await recoverMissingSyncJobs(queue);
+  assert.ok(await queue.getJob(syncJobId(pending.id)));
+  assert.equal((await queued()).jobRunId, pending.id);
+});
+
+test("concurrent recovery scans recreate one missing job and the worker completes it", async () => {
+  pages(page => page === 1 ? [activity(101)] : []);
+  const run = await createOrReuseSyncRun(user.id); // Simulate web crash before queue.add.
+  await Promise.all([recoverMissingSyncJobs(queue), recoverMissingSyncJobs(queue)]);
+  assert.equal(await queue.getWaitingCount(), 1);
+  const job = await queue.getJob(syncJobId(run.id));
+  assert.deepEqual(job.data, { jobRunId: run.id });
+  await startWorker();
+  await job.waitUntilFinished(events, 15000);
+  const saved = await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } });
+  assert.equal(saved.status, "SUCCESS");
+  assert.equal(saved.attemptsStarted, 1);
+  assert.equal(saved.leaseExpiresAt, null);
+  assert.equal(await recoverMissingSyncJobs(queue), 0);
+});
+
+test("a lost enqueue acknowledgement cannot mark a successfully queued sync failed", async () => {
+  const producer = getSyncQueue();
+  const originalAdd = producer.add.bind(producer);
+  mock.method(producer, "add", async (...args) => { await originalAdd(...args); throw new Error("Lost acknowledgement"); });
+  const response = await enqueue(request());
+  assert.equal(response.status, 202);
+  const run = await prisma.jobRun.findFirstOrThrow();
+  assert.equal(run.status, "PENDING");
+  assert.equal(await recoverMissingSyncJobs(queue), 0);
+  assert.equal(await queue.getWaitingCount(), 1);
+});
+
+test("recovery leaves queued, paused, delayed and active jobs alone", async () => {
+  const waiting = await queued();
+  assert.equal(await recoverMissingSyncJobs(queue), 0);
+  await queue.pause();
+  assert.equal(await recoverMissingSyncJobs(queue), 0);
+  await queue.resume();
+  await waiting.job.remove();
+  const delayed = await queue.add(JOBS.syncAthlete, { jobRunId: waiting.jobRunId }, { jobId: syncJobId(waiting.jobRunId), delay: 60000 });
+  assert.equal(await recoverMissingSyncJobs(queue), 0);
+  assert.equal(await delayed.getState(), "delayed");
+  await delayed.remove();
+  await queue.add(JOBS.syncAthlete, { jobRunId: waiting.jobRunId }, { jobId: syncJobId(waiting.jobRunId) });
+  worker = new Worker(QUEUES.jobs, processJob, { ...options, autorun: false });
+  const activeJob = await worker.getNextJob("recovery-test-lock");
+  assert.ok(activeJob);
+  assert.equal(await activeJob.getState(), "active");
+  assert.equal(await recoverMissingSyncJobs(queue), 0);
+});
+
+test("missing running jobs wait for lease expiry; recovered attempts replay pages idempotently", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  const first = await startSyncRun(run.id, 0);
+  await saveActivityPage(run.id, user.id, [activity(101)], 1, first.attemptNumber);
+  assert.equal(await recoverMissingSyncJobs(queue), 0);
+  await prisma.jobRun.update({ where: { id: run.id }, data: { leaseExpiresAt: new Date(0) } });
+  await recoverMissingSyncJobs(queue);
+  pages(page => page === 1 ? [activity(101), activity(102)] : []);
+  const job = await queue.getJob(syncJobId(run.id));
+  await startWorker();
+  await job.waitUntilFinished(events, 15000);
+  assert.equal(await prisma.activity.count(), 2);
+  const saved = await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } });
+  assert.equal(saved.attemptsStarted, 2);
+  assert.equal(saved.activityCount, 2);
+});
+
+test("recreated jobs preserve a persisted rate-limit delay and an early job cannot bypass it", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  const first = await startSyncRun(run.id, 0);
+  const retryAt = new Date(Date.now() + 60000);
+  await recordSyncFailure(run.id, first.attemptNumber, "Rate limited", retryAt);
+  await recoverMissingSyncJobs(queue);
+  const job = await queue.getJob(syncJobId(run.id));
+  assert.equal(await job.getState(), "delayed");
+  assert.ok(job.delay > 50000);
+  // Simulate another producer losing the delay option. The processor checks PG too.
+  await job.promote();
+  await startWorker();
+  for (let check = 0; check < 100 && await job.getState() !== "delayed"; check++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(await job.getState(), "delayed");
+  assert.equal((await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } })).attemptsStarted, 1);
+  assert.equal(globalThis.fetch.mock.callCount(), 0);
+});
+
+test("repeated Redis job loss cannot reset the persisted five-attempt limit", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  for (let attemptNumber = 1; attemptNumber <= 5; attemptNumber++) {
+    await recoverMissingSyncJobs(queue);
+    const job = await queue.getJob(syncJobId(run.id));
+    assert.ok(job);
+    const claim = await startSyncRun(run.id, 0); // Each new Redis job starts at zero.
+    assert.equal(claim.attemptNumber, attemptNumber);
+    await job.remove();
+    await prisma.jobRun.update({ where: { id: run.id }, data: { leaseExpiresAt: new Date(0) } });
+  }
+  await recoverMissingSyncJobs(queue);
+  assert.equal(await queue.getJob(syncJobId(run.id)), undefined);
+  const saved = await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } });
+  assert.equal(saved.status, "FAILED");
+  assert.equal(saved.attemptsStarted, 5);
+  assert.equal(globalThis.fetch.mock.callCount(), 0);
+});
+
+test("an expired processor cannot write pages, success or failure over a newer execution", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  const first = await startSyncRun(run.id, 0);
+  assert.equal((await startSyncRun(run.id, 0)).kind, "deferred");
+  await prisma.jobRun.update({ where: { id: run.id }, data: { leaseExpiresAt: new Date(0) } });
+  const second = await startSyncRun(run.id, 0);
+  assert.equal(second.attemptNumber, 2);
+  await assert.rejects(renewSyncLease(run.id, first.attemptNumber), SyncLeaseLostError);
+  await assert.rejects(saveActivityPage(run.id, user.id, [activity(101)], 1, first.attemptNumber), SyncLeaseLostError);
+  await assert.rejects(finishSyncRun(run.id, user.id, first.attemptNumber), SyncLeaseLostError);
+  await recordSyncFailure(run.id, first.attemptNumber, "Old attempt failed", null);
+  assert.equal(await prisma.activity.count(), 0);
+  assert.equal((await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } })).status, "RUNNING");
+  assert.equal((await prisma.stravaConnection.findUniqueOrThrow({ where: { userId: user.id } })).lastSuccessfulSyncAt, null);
+});
+
+test("terminal database runs are never resurrected by recovery or a leftover queue job", async () => {
+  for (const status of ["SUCCESS", "FAILED", "CANCELLED"]) {
+    const run = await prisma.jobRun.create({ data: { userId: user.id, status } });
+    assert.equal(await recoverMissingSyncJobs(queue), 0);
+    assert.equal((await startSyncRun(run.id, 0)).kind, "terminal");
+  }
+  assert.equal(await queue.getWaitingCount(), 0);
+});
+
+test("terminal BullMQ failure is reconciled when a processor could not update Postgres", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  const job = await queue.add(JOBS.syncAthlete, { jobRunId: run.id }, { jobId: syncJobId(run.id), attempts: 1 });
+  worker = new Worker(QUEUES.jobs, async () => { throw new Error("Simulated crash"); }, options);
+  await assert.rejects(job.waitUntilFinished(events, 15000), /Simulated crash/);
+  await recoverMissingSyncJobs(queue);
+  assert.equal((await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } })).status, "FAILED");
+  assert.equal(await job.getState(), "failed");
+});
+
+test("the recovery service scans on startup and periodically, then stops cleanly", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  const stopRecovery = startSyncRecovery(30);
+  try {
+    for (let check = 0; check < 100 && !await queue.getJob(syncJobId(run.id)); check++) await new Promise(resolve => setTimeout(resolve, 10));
+    const job = await queue.getJob(syncJobId(run.id));
+    assert.ok(job);
+    await job.remove();
+    for (let check = 0; check < 100 && !await queue.getJob(syncJobId(run.id)); check++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(await queue.getJob(syncJobId(run.id)));
+  } finally { await stopRecovery(); }
+});
+
+test("the recovery service reconnects after Redis is unavailable at startup", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  const originalRedisUrl = process.env.REDIS_URL;
+  process.env.REDIS_URL = "redis://127.0.0.1:1";
+  const stopRecovery = startSyncRecovery(30);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal((await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } })).status, "PENDING");
+    process.env.REDIS_URL = originalRedisUrl;
+    for (let check = 0; check < 600 && !await queue.getJob(syncJobId(run.id)); check++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(await queue.getJob(syncJobId(run.id)));
+  } finally {
+    process.env.REDIS_URL = originalRedisUrl;
+    await stopRecovery();
+  }
+});
+
+test("a recovered final attempt fails once instead of consuming a new BullMQ retry budget", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  await prisma.jobRun.update({ where: { id: run.id }, data: { attemptsStarted: 4 } });
+  pages(() => Response.json({}, { status: 500 }));
+  await recoverMissingSyncJobs(queue);
+  const job = await queue.getJob(syncJobId(run.id));
+  await startWorker();
+  await assert.rejects(job.waitUntilFinished(events, 15000), /Sync failed/);
+  assert.equal((await queue.getJob(job.id)).attemptsMade, 1);
+  assert.equal((await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } })).attemptsStarted, 5);
+  assert.equal((await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } })).status, "FAILED");
+});
+
+test("an exhausted rate-limited sync does not promise another automatic retry", async () => {
+  const syncRun = await createOrReuseSyncRun(user.id);
+  await prisma.jobRun.update({ where: { id: syncRun.id }, data: { attemptsStarted: 4 } });
+  const providerRequests = pages(() => Response.json({}, { status: 429 }));
+
+  await assert.rejects(processJob({
+    name: JOBS.syncAthlete, data: { jobRunId: syncRun.id }, attemptsMade: 0, opts: { attempts: 5 },
+  }), /Strava's request limit was reached\. Please try syncing again later\./);
+
+  const savedSync = await prisma.jobRun.findUniqueOrThrow({ where: { id: syncRun.id } });
+  assert.equal(savedSync.status, "FAILED");
+  assert.equal(savedSync.attemptsStarted, 5);
+  assert.equal(savedSync.nextRetryAt, null);
+  assert.doesNotMatch(savedSync.error, /Waiting before retrying/);
+  assert.equal(providerRequests.mock.callCount(), 1);
+});
+
+test("a Redis lookup failure does not imply a missing job or alter Postgres status", async () => {
+  const run = await createOrReuseSyncRun(user.id);
+  mock.method(queue, "getJob", async () => { throw new Error("Redis unavailable"); });
+  const add = mock.method(queue, "add");
+  await assert.rejects(recoverMissingSyncJobs(queue), /Redis unavailable/);
+  assert.equal(add.mock.callCount(), 0);
+  assert.equal((await prisma.jobRun.findUniqueOrThrow({ where: { id: run.id } })).status, "PENDING");
 });
 
 test("transient failures stop at the attempt limit and become a failed sync in Postgres", async () => {

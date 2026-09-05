@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getStravaConnectionStatus, getSyncDashboard } from "@pkg/db";
+import { getStravaConnectionStatus, getSyncDashboard, getPlannerState } from "@pkg/db";
 import ActivityDashboard from "./activity-dashboard";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
 
@@ -25,17 +25,19 @@ export default async function Home({ searchParams }: {
   let user = null;
   let connection = null;
   let dashboard = null;
+  let planner = null;
   let storageError = false;
   try {
     const cookieStore = await cookies();
     user = await userFromSession(cookieStore.get(SESSION_COOKIE)?.value);
     if (user) connection = await getStravaConnectionStatus(user.id);
     if (user && connection) dashboard = await getSyncDashboard(user.id);
+    if (user && connection) planner = await getPlannerState(user.id);
   } catch { storageError = true; }
   const message = params.strava ? messages[params.strava] : undefined;
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 px-6 py-16">
+    <main className="mx-auto max-w-4xl space-y-8 px-6 py-16">
       <header className="space-y-3">
         <h1 className="text-3xl font-semibold">Triathlon training planner</h1>
         <p>Connect Strava to get started with your swim, bike, and run training.</p>
@@ -54,7 +56,7 @@ export default async function Home({ searchParams }: {
           </button>
         </form>
       </section>
-      {dashboard && <ActivityDashboard initialData={dashboard} />}
+      {dashboard && planner && <ActivityDashboard initialData={dashboard} initialPlanner={planner} />}
     </main>
   );
 }

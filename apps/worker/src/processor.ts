@@ -1,7 +1,8 @@
-import { UnrecoverableError, type Job } from "bullmq";
-import { JOBS, PingJobSchema, SyncAthleteJobSchema, SYNC_HISTORY_DAYS } from "@pkg/shared";
+import { DelayedError, UnrecoverableError, type Job } from "bullmq";
+import { JOBS, PingJobSchema, SyncAthleteJobSchema, SYNC_HISTORY_DAYS, SYNC_ATTEMPTS } from "@pkg/shared";
 import {
   finishSyncRun, getValidStravaAccessToken, loadSyncRun, recordSyncFailure, saveActivityPage, startSyncRun,
+  renewSyncLease, SyncLeaseLostError,
 } from "@pkg/db";
 import {
   fetchStravaActivities, refreshStravaTokens, StravaApiError, StravaDataError, StravaTokenError,
@@ -22,58 +23,78 @@ export async function processJob(job: Job) {
   if (job.name !== JOBS.syncAthlete) throw new UnrecoverableError(`Unsupported job: ${job.name}`);
   const parsed = SyncAthleteJobSchema.safeParse(job.data);
   if (!parsed.success) throw new UnrecoverableError("Invalid SyncAthleteJob");
-  const run = await loadSyncRun(parsed.data.jobRunId);
-  if (!run || run.jobType !== "STRAVA_SYNC") throw new UnrecoverableError("Sync record not found");
-  if (run.status === "SUCCESS") return { activityCount: run.activityCount };
-  if (run.status === "CANCELLED") throw new UnrecoverableError("Sync cancelled");
+  const syncRun = await loadSyncRun(parsed.data.jobRunId);
+  if (!syncRun || syncRun.jobType !== "STRAVA_SYNC") throw new UnrecoverableError("Sync record not found");
+  if (syncRun.status === "SUCCESS") return { activityCount: syncRun.activityCount };
+  const claim = await startSyncRun(syncRun.id, job.attemptsMade);
+  if (claim.kind === "deferred") {
+    await job.moveToDelayed(claim.until, job.token);
+    throw new DelayedError(); // Lease/rate-limit waits do not spend an attempt.
+  }
+  if (claim.kind === "terminal") {
+    if (claim.status === "SUCCESS") return { activityCount: claim.activityCount };
+    throw new UnrecoverableError("Sync cancelled, failed, or exhausted its attempts");
+  }
+  const { attemptNumber } = claim;
 
   try {
-    const connection = run.user.stravaConnection;
+    const connection = syncRun.user.stravaConnection;
     if (!connection || !connection.scopes.includes("activity:read_all")) {
       throw new UnrecoverableError("Please reconnect Strava with activity access.");
     }
-    await startSyncRun(run.id);
     // Freeze the window at enqueue time so every retry covers the same range.
-    const before = Math.floor(run.createdAt.getTime() / 1000);
+    const before = Math.floor(syncRun.createdAt.getTime() / 1000);
     const after = before - SYNC_HISTORY_DAYS * 86400;
-    let count = 0;
+    let processedActivityCount = 0;
     for (let page = 1; ; page++) {
-      let accessToken = await getValidStravaAccessToken(run.userId, refreshStravaTokens);
+      await renewSyncLease(syncRun.id, attemptNumber);
+      let accessToken = await getValidStravaAccessToken(syncRun.userId, refreshStravaTokens);
       let activities;
       try {
         activities = await fetchStravaActivities(accessToken, { after, before, page });
       } catch (error) {
         if (!(error instanceof StravaApiError) || error.status !== 401) throw error;
         // Refresh once on rejection, even if Postgres still says the token is valid.
-        accessToken = await getValidStravaAccessToken(run.userId, refreshStravaTokens, accessToken);
+        accessToken = await getValidStravaAccessToken(syncRun.userId, refreshStravaTokens, accessToken);
         activities = await fetchStravaActivities(accessToken, { after, before, page });
       }
       if (activities.length === 0) break;
       if (activities.some(activity => BigInt(activity.athlete.id) !== connection.athleteId)) {
         throw new UnrecoverableError("Strava returned activities for a different athlete.");
       }
-      count += activities.length;
-      await saveActivityPage(run.id, run.userId, activities, count);
+      processedActivityCount += activities.length;
+      await saveActivityPage(syncRun.id, syncRun.userId, activities, processedActivityCount, attemptNumber);
     }
-    await finishSyncRun(run.id, run.userId);
-    console.log(`Sync ${run.id} completed: ${count} activities processed`);
-    return { activityCount: count };
+    await finishSyncRun(syncRun.id, syncRun.userId, attemptNumber);
+    console.log(`Sync ${syncRun.id} completed: ${processedActivityCount} activities processed`);
+    return { activityCount: processedActivityCount };
   } catch (error) {
-    const providerError = error instanceof StravaApiError || error instanceof StravaTokenError;
-    const permanent = error instanceof UnrecoverableError || error instanceof StravaDataError ||
-      (providerError && error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status));
-    const retrying = !permanent && job.attemptsMade + 1 < (job.opts.attempts ?? 1);
-    const message = providerError && [400, 401, 403].includes(error.status)
-      ? "Strava access was rejected. Please reconnect Strava."
-      : providerError && error.status === 429
+    // A newer attempt owns the record. Never overwrite its progress or failure.
+    if (error instanceof SyncLeaseLostError) throw new UnrecoverableError(error.message);
+    const isProviderError = error instanceof StravaApiError || error instanceof StravaTokenError;
+    const isPermanentFailure = error instanceof UnrecoverableError || error instanceof StravaDataError ||
+      (isProviderError && error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status));
+    const willRetry = !isPermanentFailure && attemptNumber < SYNC_ATTEMPTS &&
+      job.attemptsMade + 1 < (job.opts.attempts ?? 1);
+
+    let message = willRetry ? "Sync interrupted. Retrying automatically." : "Sync failed. Please try again.";
+    if (isProviderError && [400, 401, 403].includes(error.status)) {
+      message = "Strava access was rejected. Please reconnect Strava.";
+    } else if (isProviderError && error.status === 429) {
+      message = willRetry
         ? "Strava's request limit was reached. Waiting before retrying."
-        : error instanceof UnrecoverableError || error instanceof StravaDataError
-          ? error.message
-          : retrying ? "Sync interrupted. Retrying automatically." : "Sync failed. Please try again.";
-    await recordSyncFailure(run.id, message, retrying);
-    if (permanent) throw new UnrecoverableError(message);
+        : "Strava's request limit was reached. Please try syncing again later.";
+    } else if (error instanceof UnrecoverableError || error instanceof StravaDataError) {
+      message = error.message;
+    }
+
+    const retryAt = willRetry
+      ? new Date(Date.now() + stravaBackoff(attemptNumber, "strava", error instanceof Error ? error : undefined))
+      : null;
+    await recordSyncFailure(syncRun.id, attemptNumber, message, retryAt);
+    if (isPermanentFailure || attemptNumber >= SYNC_ATTEMPTS) throw new UnrecoverableError(message);
     // Preserve only the safe provider error's rate-limit delay for BullMQ backoff.
-    if (providerError) throw error;
+    if (isProviderError) throw error;
     throw new Error(message);
   }
 }

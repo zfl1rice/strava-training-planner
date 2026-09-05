@@ -5,7 +5,15 @@ import { config } from "dotenv";
 import pg from "pg";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const syncTests = process.argv[2] === "sync";
+const testFiles = {
+  oauth: "tests/strava-oauth.test.mjs",
+  sync: "tests/activity-sync.test.mjs",
+  training: "tests/training-summary.test.mjs",
+  planner: "tests/planner.test.mjs",
+  health: "tests/health.test.mjs",
+};
+const testFile = testFiles[process.argv[2] ?? "oauth"];
+if (!testFile) throw new Error("Unknown integration test suite");
 config({ path: new URL("../.env", import.meta.url), quiet: true });
 if (!process.env.DATABASE_URL) throw new Error("Configure DATABASE_URL first");
 const databaseName = `planner_oauth_test_${randomBytes(8).toString("hex")}`;
@@ -27,20 +35,20 @@ try {
   await admin.connect();
   await admin.query(`CREATE DATABASE "${databaseName}"`);
   created = true;
-  console.log("Created isolated OAuth test database; application records are untouched.");
+  console.log("Created isolated test database; application records are untouched.");
   const migration = spawnSync(process.execPath, [
     fileURLToPath(new URL("../node_modules/prisma/build/index.js", import.meta.url)), "migrate", "deploy",
   ], { cwd: fileURLToPath(new URL("../packages/db/", import.meta.url)), env, stdio: "inherit", timeout: 60000, windowsHide: true });
   if (migration.error || migration.status !== 0) throw new Error("Test database migration failed");
   const tests = spawnSync(process.execPath, [
-    "--import", "tsx", "--test", "--test-concurrency=1", syncTests ? "tests/activity-sync.test.mjs" : "tests/strava-oauth.test.mjs",
+    "--import", "tsx", "--test", "--test-concurrency=1", testFile,
   ], { cwd: root, env, stdio: "inherit", timeout: 90000, windowsHide: true });
   process.exitCode = tests.status ?? 1;
   if (tests.error) console.error(tests.error.message);
 } finally {
   if (created && /^planner_oauth_test_[a-f0-9]{16}$/.test(databaseName)) {
     await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
-    console.log("Removed isolated OAuth test database.");
+    console.log("Removed isolated test database.");
   }
   await admin.end();
 }

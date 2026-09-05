@@ -1,12 +1,13 @@
-const path = require("path");
-const { defineConfig, env } = require("prisma/config");
+import { defineConfig, env } from "prisma/config";
+import { config } from "dotenv";
 
 // Load the repo-root .env even though Prisma is running with CWD=packages/db
-require("dotenv").config({
-  path: path.join(__dirname, "..", "..", ".env"),
+config({
+  path: new URL("../../.env", import.meta.url),
+  quiet: true,
 });
 
-module.exports = defineConfig({
+export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: { path: "prisma/migrations" },
   datasource: {

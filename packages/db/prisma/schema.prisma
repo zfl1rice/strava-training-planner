@@ -17,6 +17,28 @@ model User {
   jobRuns    JobRun[]
   stravaConnection StravaConnection?
   sessions Session[]
+  weeklyPlans WeeklyPlan[]
+  weeklyGoals WeeklyGoals?
+}
+
+model WeeklyGoals {
+  userId Int @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runMinutes Int?
+  bikeMinutes Int?
+  swimMinutes Int?
+}
+
+model WeeklyPlan {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart DateTime
+  content   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, weekStart])
 }
 
 model StravaConnection {
@@ -81,6 +103,9 @@ model JobRun {
   status     JobStatus  @default(PENDING)
   error      String?
   activityCount Int     @default(0)
+  attemptsStarted Int   @default(0)
+  nextRetryAt DateTime?
+  leaseExpiresAt DateTime?
 
   jobType    SyncJobType @default(STRAVA_SYNC)
 

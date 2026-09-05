@@ -4,11 +4,24 @@ import { Queue, QueueEvents, Job } from "bullmq";
 import { JOBS, QUEUES, bullConnectionFromUrl } from "@pkg/shared";
 
 config({ path: new URL("../.env", import.meta.url), quiet: true });
+const baseUrl = process.env.WEB_URL ?? "http://localhost:3000";
+// Probe HTTP first so disabled diagnostics produce a useful error even without Redis.
+const response = await fetch(`${baseUrl}/api/enqueue/ping`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ userId: 1 }),
+  signal: AbortSignal.timeout(30000),
+});
+if (response.status === 404) {
+  throw new Error("Ping diagnostics are disabled. Start the WEB process with ENABLE_PING_DIAGNOSTICS=true for this test, then disable it and restart web afterward.");
+}
+assert.equal(response.status, 202, await response.clone().text());
+const { jobId } = await response.json();
+assert.ok(jobId);
 const connection = bullConnectionFromUrl(process.env.REDIS_URL);
 const prefix = process.env.BULLMQ_PREFIX ?? "bull";
 const queue = new Queue(QUEUES.jobs, { connection, prefix });
 const events = new QueueEvents(QUEUES.jobs, { connection, prefix });
-const baseUrl = process.env.WEB_URL ?? "http://localhost:3000";
 const timeout = setTimeout(() => {
   console.error("Ping smoke test timed out; check Redis, web, and worker.");
   process.exit(1);
@@ -16,15 +29,6 @@ const timeout = setTimeout(() => {
 
 try {
   await events.waitUntilReady();
-  const response = await fetch(`${baseUrl}/api/enqueue/ping`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId: 1 }),
-    signal: AbortSignal.timeout(30000),
-  });
-  assert.equal(response.status, 202, await response.clone().text());
-  const { jobId } = await response.json();
-  assert.ok(jobId);
   const job = await Job.fromId(queue, jobId);
   assert.ok(job, "HTTP endpoint must enqueue in the same Redis queue");
   const result = await job.waitUntilFinished(events, 15000);

@@ -2,13 +2,13 @@ import { Queue } from "bullmq";
 import { bullConnectionFromUrl, QUEUES, JOBS, SYNC_ATTEMPTS, type PingJob, type SyncAthleteJob } from "@pkg/shared";
 
 type PingQueue = Queue<PingJob, { processed: boolean; userId: number }, typeof JOBS.ping>;
-const globalForQueue = globalThis as unknown as { pingQueue?: PingQueue };
 type SyncQueue = Queue<SyncAthleteJob, { activityCount: number }, typeof JOBS.syncAthlete>;
-const globalForSyncQueue = globalThis as unknown as { syncQueue?: SyncQueue };
+// Cache both producers across Next.js hot reloads, preserving their distinct types.
+const queueCache = globalThis as unknown as { pingQueue?: PingQueue; syncQueue?: SyncQueue };
 
 export function getSyncQueue(): SyncQueue {
-  if (!globalForSyncQueue.syncQueue) {
-    const queue: SyncQueue = new Queue<SyncAthleteJob, { activityCount: number }, typeof JOBS.syncAthlete>(QUEUES.jobs, {
+  if (!queueCache.syncQueue) {
+    const queue: SyncQueue = new Queue(QUEUES.jobs, {
       prefix: process.env.BULLMQ_PREFIX ?? "bull",
       connection: {
         ...bullConnectionFromUrl(process.env.REDIS_URL), maxRetriesPerRequest: 1,
@@ -20,18 +20,14 @@ export function getSyncQueue(): SyncQueue {
       },
     });
     queue.on("error", (error) => console.error("Sync queue error:", error.message));
-    globalForSyncQueue.syncQueue = queue;
+    queueCache.syncQueue = queue;
   }
-  return globalForSyncQueue.syncQueue;
+  return queueCache.syncQueue;
 }
 
 export function getPingQueue(): PingQueue {
-  if (!globalForQueue.pingQueue) {
-    const queue: PingQueue = new Queue<
-      PingJob,
-      { processed: boolean; userId: number },
-      typeof JOBS.ping
-    >(QUEUES.jobs, {
+  if (!queueCache.pingQueue) {
+    const queue: PingQueue = new Queue(QUEUES.jobs, {
       prefix: process.env.BULLMQ_PREFIX ?? "bull",
       connection: {
         ...bullConnectionFromUrl(process.env.REDIS_URL),
@@ -47,9 +43,9 @@ export function getPingQueue(): PingQueue {
       },
     });
     queue.on("error", (error) => console.error("Queue error:", error.message));
-    globalForQueue.pingQueue = queue;
+    queueCache.pingQueue = queue;
   }
-  return globalForQueue.pingQueue;
+  return queueCache.pingQueue;
 }
 
 export async function waitForQueue(queue: { waitUntilReady(): Promise<unknown> }) {
