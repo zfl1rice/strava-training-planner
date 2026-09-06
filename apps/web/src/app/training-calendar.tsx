@@ -1,5 +1,6 @@
 "use client";
 
+import WorkoutChart from "./workout-chart";
 import { useEffect, useRef, useState } from "react";
 import { CalendarMonthSchema, calendarMonthRange, type TrainingCalendarData, calendarWorkouts, localDateAt } from "@pkg/shared";
 
@@ -49,12 +50,12 @@ function WorkoutDetails({ entry, onClose }: { entry: CalendarEntry | null; onClo
           {entry.kind === "planned" && ` · ${entry.workout.effort.toLowerCase()} effort${entry.workout.optional ? " · optional" : ""}`}
         </p>
         {entry.kind === "planned" ? (
-          <ol className="space-y-3">
+          <div>{"blocks" in entry.workout && <><WorkoutChart workout={entry.workout} /><p className="mb-4 text-sm">{entry.workout.explanation}</p></>}<ol className="space-y-3">
             {entry.workout.steps.map(step => <li key={`${step.label}-${step.minutes}`} className="rounded-lg bg-slate-50 p-4">
               <h3 className="font-medium">{step.label} <span className="font-normal text-slate-500">· {step.minutes} min</span></h3>
               <p className="mt-1 text-sm leading-6 text-slate-600">{step.instructions}</p>
             </li>)}
-          </ol>
+          </ol></div>
         ) : <div className="space-y-4 text-sm text-slate-600">
           <p>{sportNames[entry.activity.type] || entry.activity.type} · Recorded moving time</p>
           <p>Distance: {entry.activity.distanceMeters === null ? "Unavailable" : entry.activity.type === "SWIM"
@@ -170,6 +171,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
                     className={`calendar-entry calendar-entry-${entry.kind}`} onClick={() => setSelected(entry)}
                     aria-label={`${entry.kind === "completed" ? "Completed" : "Planned"}: ${Math.round(entryMinutes(entry))} min ${entryTitle(entry)}, ${formatDate(date)}`}>
                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide">{entry.kind === "completed" ? "✓ Completed" : "○ Planned"} · {entry.kind === "completed" ? entry.activity.type : entry.workout.sport}</span>
+                    {entry.kind === "planned" && "blocks" in entry.workout && <WorkoutChart workout={entry.workout} />}
                     <span className="block text-xs font-medium leading-5">{Math.round(entryMinutes(entry))} min {entryTitle(entry)}</span>
                   </button>)}
                   {restDates.has(date) && <p className="py-1 text-xs text-slate-400">Rest day</p>}

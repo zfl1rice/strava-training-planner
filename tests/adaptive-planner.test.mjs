@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan } from "@pkg/shared";
+import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan, resolveWorkoutTargets } from "@pkg/shared";
 import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan } from "@pkg/db";
 
 assert.match(process.env.OAUTH_TEST_DATABASE ?? "", /^planner_oauth_test_[a-f0-9]{16}$/);
@@ -88,4 +88,21 @@ test("calendar uses athlete-local dates around UTC midnight", async () => {
   const calendar = await getTrainingCalendar(user.id, "2026-09");
   assert.equal(calendar.timeZone, "America/Chicago");
   assert.equal(calendar.activities.length, 1);
+});
+
+test("targets resolve from baselines, declare missing data, and keep old snapshots stable", async () => {
+  const context = await configuredContext();
+  const workout = customPlan().days[1];
+  assert.equal(resolveWorkoutTargets(workout, context.fitness, context.generatedAt).blocks[0].segments[0].resolved, null);
+  context.fitness.effective.cycling.value = 250;
+  const resolved = resolveWorkoutTargets(workout, context.fitness, context.generatedAt);
+  assert.equal(resolved.blocks[0].segments[0].resolved.lower, 250);
+  assert.equal(resolved.blocks[0].segments[0].resolved.upper, 275);
+  context.fitness.effective.cycling.value = 300;
+  assert.equal(resolved.blocks[0].segments[0].resolved.baseline, 250);
+  assert.equal(resolveWorkoutTargets(workout, context.fitness, context.generatedAt).blocks[0].segments[0].resolved.upper, 330);
+  context.fitness.definitions.running.thresholdPace = { value: 300, recordedAt: context.generatedAt, evidenceIds: [], explanation: null };
+  workout.sport = "RUN";
+  workout.blocks[0].segments[0].target = { metric: "THRESHOLD_PACE_PERCENT", lower: 110, upper: 120 };
+  assert.equal(resolveWorkoutTargets(workout, context.fitness, context.generatedAt).blocks[0].segments[0].resolved.lower, 330);
 });

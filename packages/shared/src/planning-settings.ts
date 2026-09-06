@@ -4,6 +4,7 @@ import { PlanningTimestampSchema, TimeZoneSchema } from "./planning-dates.js";
 
 export const ManualBaselinesSchema = z.object({
   cyclingFtp: z.number().finite().positive().nullable(),
+  runningThresholdPace: z.number().finite().positive().nullable().optional(),
   runningMaxHr: z.number().int().positive().nullable(),
   swimThresholdPace: z.number().finite().positive().nullable(),
   swimPaceUnit: z.enum(["SECONDS_PER_100M", "SECONDS_PER_100YD"]),

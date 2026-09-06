@@ -52,7 +52,7 @@ const FitnessSportSchema = z.object({
 }).strict();
 export const FitnessProfileSchema = z.object({
   cycling: FitnessSportSchema,
-  running: FitnessSportSchema,
+  running: FitnessSportSchema.extend({ thresholdPace: BaselineValueSchema.nullable().optional() }),
   swimming: FitnessSportSchema.extend({ paceUnit: z.enum(["SECONDS_PER_100M", "SECONDS_PER_100YD"]) }),
 }).strict().superRefine((fitness, context) => {
   for (const [key, expectedUnit] of [

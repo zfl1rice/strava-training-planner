@@ -1,3 +1,4 @@
+import { targetDescription } from "./workout-targets.js";
 import { z } from "zod";
 import { PlanSportSchema, WeeklyPlanSchema, validateWeeklyPlan, type WeeklyPlan } from "./planner.js";
 import { LocalDateSchema, TimeZoneSchema, addCalendarDays, calendarWeekday } from "./planning-dates.js";
@@ -12,6 +13,10 @@ export const WorkoutSegmentSchema = z.object({
   seconds: z.number().int().positive().max(86400),
   instructions: z.string().trim().min(1).max(2000),
   target: WorkoutTargetSchema,
+  resolved: z.object({ lower: z.number().finite().positive(), upper: z.number().finite().positive(),
+    unit: z.enum(["WATTS", "BPM", "SECONDS_PER_KM", "SECONDS_PER_100M", "SECONDS_PER_100YD", "RPE"]),
+    baseline: z.number().finite().positive().nullable(), recordedAt: z.string().datetime(),
+  }).strict().nullable().optional(),
 }).strict();
 export const WorkoutBlockSchema = z.object({
   repeat: z.number().int().min(1).max(100),
@@ -76,7 +81,7 @@ export function calendarWorkouts(plan: StoredPlan) {
     ...day, id: "id" in day ? day.id : `${day.date}:${day.templateId}`,
     steps: "steps" in day ? day.steps : day.blocks.flatMap(block => Array.from({ length: block.repeat }, (_, index) =>
       block.segments.map(segment => ({ label: block.repeat > 1 ? `${segment.label} (${index + 1}/${block.repeat})` : segment.label,
-        minutes: segment.seconds / 60, instructions: segment.instructions,
+        minutes: segment.seconds / 60, instructions: `${segment.instructions} Target: ${targetDescription(segment)}`,
       })))).flat(),
   }]);
 }

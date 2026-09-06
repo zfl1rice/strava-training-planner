@@ -25,6 +25,7 @@ export async function getPlanningSettings(userId: number, database: Prisma.Trans
     timeZone: user.timeZone, profileUpdatedAt: user.athleteProfile?.updatedAt.toISOString() ?? null,
     baselines: {
       cyclingFtp: profile.fitness.cycling.baseline.manual?.value ?? null,
+      runningThresholdPace: profile.fitness.running.thresholdPace?.value ?? null,
       runningMaxHr: profile.fitness.running.baseline.manual?.value ?? null,
       swimThresholdPace: profile.fitness.swimming.baseline.manual?.value ?? null,
       swimPaceUnit: profile.fitness.swimming.paceUnit,
@@ -73,6 +74,11 @@ export async function updatePlanningSettings(userId: number, input: unknown): Pr
           if (value !== baseline.manual?.value || (sport === "swimming" && baselines.swimPaceUnit !== swim.paceUnit)) {
             baseline.manual = value === null ? null : { value, recordedAt: updatedAt.toISOString(), evidenceIds: [], explanation: null };
           }
+        }
+        if (baselines.runningThresholdPace !== undefined && baselines.runningThresholdPace !== profile.fitness.running.thresholdPace?.value) {
+          profile.fitness.running.thresholdPace = baselines.runningThresholdPace === null ? null : {
+            value: baselines.runningThresholdPace, recordedAt: updatedAt.toISOString(), evidenceIds: [], explanation: null,
+          };
         }
         swim.paceUnit = baselines.swimPaceUnit;
         await database.user.update({ where: { id: userId }, data: { timeZone: change.timeZone } });

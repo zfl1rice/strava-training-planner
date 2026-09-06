@@ -7,7 +7,8 @@ are introduced by this sequence.
   blocks, intensity targets, multiple sessions per date, compatible v1 reads.
 - [x] Replace fixed scheduling: configured local days, session/time/pool limits,
   restrictions, rest days, and explicit shortfalls replace the v1 template caps.
-- [ ] Resolve workout targets
+- [x] Resolve workout targets: saved numeric target snapshots, running threshold
+  pace input, relative intensity charts, and explicit missing baselines.
 - [ ] Add feedback and adjustment controls
 - [ ] Implement regeneration boundaries
 - [ ] Prepare background generation

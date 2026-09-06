@@ -7,6 +7,7 @@ import type { SaveSettings } from "./settings-editor";
 export default function ProfileForm({ settings, saving, save }: { settings: PlanningSettings; saving: boolean; save: SaveSettings }) {
   const [timeZone, setTimeZone] = useState(settings.timeZone);
   const [ftp, setFtp] = useState(settings.baselines.cyclingFtp?.toString() ?? "");
+  const [runPace, setRunPace] = useState(settings.baselines.runningThresholdPace?.toString() ?? "");
   const [maxHr, setMaxHr] = useState(settings.baselines.runningMaxHr?.toString() ?? "");
   const [swimPace, setSwimPace] = useState(settings.baselines.swimThresholdPace?.toString() ?? "");
   const [swimUnit, setSwimUnit] = useState(settings.baselines.swimPaceUnit);
@@ -14,7 +15,7 @@ export default function ProfileForm({ settings, saving, save }: { settings: Plan
   return <form className="settings-card space-y-5" onSubmit={event => {
     event.preventDefault();
     void save({ section: "PROFILE", expectedUpdatedAt: settings.profileUpdatedAt, timeZone,
-      baselines: { cyclingFtp: nullableNumber(ftp), runningMaxHr: nullableNumber(maxHr), swimThresholdPace: nullableNumber(swimPace), swimPaceUnit: swimUnit } });
+      baselines: { runningThresholdPace: nullableNumber(runPace), cyclingFtp: nullableNumber(ftp), runningMaxHr: nullableNumber(maxHr), swimThresholdPace: nullableNumber(swimPace), swimPaceUnit: swimUnit } });
   }}>
     <fieldset disabled={saving} className="space-y-5">
       <legend className="mb-3 text-lg font-semibold">Timezone &amp; fitness baselines</legend>
@@ -22,12 +23,13 @@ export default function ProfileForm({ settings, saving, save }: { settings: Plan
         <label className="settings-label">Timezone<input required value={timeZone} onChange={event => setTimeZone(event.target.value)} placeholder="America/Chicago" list="timezones" /></label>
         <datalist id="timezones">{["UTC", "America/Chicago", "America/New_York", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Australia/Sydney", "Asia/Tokyo"].map(zone => <option key={zone} value={zone} />)}</datalist>
         <button type="button" className="text-sm text-blue-700 underline" onClick={() => setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone)}>Use device timezone</button>
-        <p className="text-xs text-slate-500">Used for availability dates and future planning summaries. The current calendar remains in UTC.</p>
+        <p className="text-xs text-slate-500">Used for calendar activity dates, availability, and new plans. Saved workouts keep their original dates.</p>
       </div>
       <p className="text-sm text-slate-600">Manual values take precedence over estimates. Leave a value blank to remove your override; a saved estimate may then be used. Custom zones are preserved.</p>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="settings-label">Cycling FTP (watts)<input type="number" min="1" step="any" value={ftp} onChange={event => setFtp(event.target.value)} placeholder="Not set" /></label>
         <label className="settings-label">Running max heart rate (bpm)<input type="number" min="1" step="1" value={maxHr} onChange={event => setMaxHr(event.target.value)} placeholder="Not set" /></label>
+        <label className="settings-label">Running threshold pace (seconds/km)<input type="number" min="1" step="any" value={runPace} onChange={event => setRunPace(event.target.value)} placeholder="Not set" /></label>
         <label className="settings-label">Swim threshold pace (seconds)<input type="number" min="1" step="any" value={swimPace} onChange={event => setSwimPace(event.target.value)} placeholder="Not set" /></label>
         <label className="settings-label">Swim pace unit<select value={swimUnit} disabled={settings.swimUnitLocked} onChange={event => {
           const next = event.target.value as typeof swimUnit;

@@ -1,3 +1,4 @@
+import { resolveWorkoutTargets } from "./workout-targets.js";
 import { PlanSportSchema, type PlanSport } from "./planner.js";
 import type { PlanningContext } from "./planning-context.js";
 import { FlexiblePlanSchema, type FlexiblePlan, type StructuredWorkout } from "./structured-workouts.js";
@@ -61,6 +62,15 @@ export function generateFlexiblePlan(context: PlanningContext): FlexiblePlan {
       else workouts.push(easyWorkout(`${day.date}-${sport.toLowerCase()}`, day.date, sport, 5));
       budgets[sport].plannedMinutes += 5;
     }
+  }
+  for (const workout of workouts) {
+    for (const block of workout.blocks) for (const segment of block.segments) {
+      const main = segment.label === "Main";
+      if (workout.sport === "BIKE" && context.fitness.effective.cycling.value) segment.target = { metric: "FTP_PERCENT", lower: main ? 60 : 45, upper: main ? 70 : 55 };
+      if (workout.sport === "RUN" && context.fitness.definitions.running.thresholdPace?.value) segment.target = { metric: "THRESHOLD_PACE_PERCENT", lower: main ? 115 : 125, upper: main ? 130 : 140 };
+      if (workout.sport === "SWIM" && context.fitness.effective.swimming.value) segment.target = { metric: "THRESHOLD_PACE_PERCENT", lower: main ? 110 : 120, upper: main ? 120 : 130 };
+    }
+    Object.assign(workout, resolveWorkoutTargets(workout, context.fitness, context.generatedAt));
   }
   const assumptions = ["Uses your local week, configured availability, pool access, and restrictions. Unconfigured days are unavailable.",
     "Easy sessions only; at least one rest day. Five-minute allocation prioritizes sports with fewer available days. Race-specific intensity selection is deferred."];
