@@ -11,3 +11,6 @@ export const SyncAthleteJobSchema = z.object({
 }).strict();
 
 export type SyncAthleteJob = z.infer<typeof SyncAthleteJobSchema>;
+
+export const GeneratePlanJobSchema = z.object({ jobRunId: z.number().int().positive() }).strict();
+export type GeneratePlanJob = z.infer<typeof GeneratePlanJobSchema>;

@@ -1,3 +1,5 @@
+import { executePlanRun } from "@pkg/db";
+import { planJobId } from "@pkg/shared";
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
@@ -28,7 +30,12 @@ beforeEach(async () => {
     tokenHash: hashToken(session), expiresAt: new Date(Date.now() + 600000),
   } } } });
 });
-after(async () => { await prisma.$disconnect(); });
+const queuedPlanIds = [];
+after(async () => {
+  for (const id of queuedPlanIds) await (await globalThis.planQueue?.getJob(planJobId(id)))?.remove();
+  await globalThis.planQueue?.close();
+  await prisma.$disconnect();
+});
 
 function request(method = "POST", token = session, origin = "http://localhost:3000", body) {
   return new NextRequest("http://localhost:3000/api/planner", { method, headers: {
@@ -169,7 +176,7 @@ test("concurrent generation keeps one saved plan and week rollover retains the c
   assert.equal(rollover.nextPlan, null);
 });
 
-test("generation and reads are session-protected and ignore client-supplied user IDs and budgets", async () => {
+test("generation and reads are session-protected and reject client-supplied user IDs and budgets", async () => {
   assert.equal((await generate(request("POST", "invalid"))).status, 401);
   assert.equal((await generate(request("POST", session, "https://unrelated.example"))).status, 403);
   assert.equal((await readPlan(request("GET", "invalid"))).status, 401);
@@ -178,11 +185,17 @@ test("generation and reads are session-protected and ignore client-supplied user
   const initial = await readPlan(request("GET"));
   assert.equal((await initial.json()).nextPlan, null);
   const response = await generate(request("POST", session, "http://localhost:3000", { userId: other.id, targetMinutes: 9999 }));
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get("cache-control"), "no-store");
-  const state = await response.json();
-  assert.equal(state.nextPlan.content.totalMinutes, 40);
-  assert.equal((await prisma.weeklyPlan.findUniqueOrThrow({ where: { id: state.nextPlan.id } })).userId, user.id);
+  assert.equal(response.status, 400);
+  const accepted = await generate(request());
+  assert.equal(accepted.status, 202);
+  assert.equal(accepted.headers.get("cache-control"), "no-store");
+  const state = await accepted.json();
+  queuedPlanIds.push(state.generation.id);
+  assert.equal(state.nextPlan, null);
+  await executePlanRun(state.generation.id);
+  const saved = await getPlannerState(user.id);
+  assert.equal(saved.nextPlan.content.version, 2);
+  assert.equal((await prisma.weeklyPlan.findUniqueOrThrow({ where: { id: saved.nextPlan.id } })).userId, user.id);
 });
 
 test("generation waits for active activity sync without replacing an existing plan", async () => {
@@ -409,7 +422,12 @@ test("goal API checks sessions, origin, invalid JSON, and strict values without 
   assert.equal((await configure(request("PATCH"))).status, 400);
   assert.deepEqual(await getWeeklyGoals(user.id), goals);
   const generated = await generate(request());
-  assert.equal(generated.status, 200);
-  assert.equal((await generated.json()).nextPlan.content.totalMinutes, 300);
+  assert.equal(generated.status, 202);
+  const state = await generated.json();
+  queuedPlanIds.push(state.generation.id);
+  await executePlanRun(state.generation.id);
+  const saved = await getPlannerState(user.id);
+  assert.deepEqual(saved.nextPlan.content.goals, goals);
+  assert.equal(saved.nextPlan.content.totalMinutes, 0); // No configured availability.
   assert.deepEqual((await (await readPlan(request("GET"))).json()).goals, goals);
 });

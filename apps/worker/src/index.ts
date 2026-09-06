@@ -22,6 +22,8 @@ const worker = new Worker(
   },
 );
 const stopSyncRecovery = startSyncRecovery();
+const { startPlanRecovery } = await import("./plan-recovery.js");
+const stopPlanRecovery = startPlanRecovery();
 
 worker.on("ready", () => console.log(`Worker ready on queue ${QUEUES.jobs}`));
 worker.on("failed", (job, error) => {
@@ -35,7 +37,7 @@ let closing = false;
 async function shutdown() {
   if (closing) return;
   closing = true;
-  await stopSyncRecovery();
+  await Promise.all([stopSyncRecovery(), stopPlanRecovery()]);
   await worker.close();
   await prisma.$disconnect();
 }

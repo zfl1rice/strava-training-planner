@@ -1,7 +1,7 @@
 import { DelayedError, UnrecoverableError, type Job } from "bullmq";
-import { JOBS, PingJobSchema, SyncAthleteJobSchema, SYNC_HISTORY_DAYS, SYNC_ATTEMPTS } from "@pkg/shared";
+import { JOBS, GeneratePlanJobSchema, PingJobSchema, SyncAthleteJobSchema, SYNC_HISTORY_DAYS, SYNC_ATTEMPTS } from "@pkg/shared";
 import {
-  finishSyncRun, getValidStravaAccessToken, loadSyncRun, recordSyncFailure, saveActivityPage, startSyncRun,
+  executePlanRun, finishSyncRun, getValidStravaAccessToken, loadSyncRun, recordSyncFailure, saveActivityPage, startSyncRun,
   renewSyncLease, SyncLeaseLostError,
 } from "@pkg/db";
 import {
@@ -14,6 +14,14 @@ export function stravaBackoff(attemptsMade: number, _type?: string, error?: Erro
 }
 
 export async function processJob(job: Job) {
+  if (job.name === JOBS.generatePlan) {
+    const parsed = GeneratePlanJobSchema.safeParse(job.data);
+    if (!parsed.success) throw new UnrecoverableError("Invalid GeneratePlanJob");
+    const result = await executePlanRun(parsed.data.jobRunId);
+    if (result.status === "DEFERRED") { await job.moveToDelayed(result.until!, job.token); throw new DelayedError(); }
+    if (result.status !== "SUCCESS") throw new UnrecoverableError("Generation request is terminal");
+    return result;
+  }
   if (job.name === JOBS.ping) {
     const parsed = PingJobSchema.safeParse(job.data);
     if (!parsed.success) throw new UnrecoverableError(`Invalid PingJob: ${parsed.error.message}`);

@@ -1,0 +1,1 @@
+ALTER TABLE "JobRun" ADD COLUMN "planRequest" JSONB;

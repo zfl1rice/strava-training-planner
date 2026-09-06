@@ -13,7 +13,8 @@ are introduced by this sequence.
   dated volume/intensity settings and explicit restrictions.
 - [x] Implement regeneration boundaries: current remainder or next week; atomic
   replacement preserves past and protected workouts and their feedback.
-- [ ] Prepare background generation
+- [x] Prepare background generation: persistent request IDs, typed BullMQ delivery,
+  retry/recovery, atomic plan-and-success writes, and browser status polling.
 - [ ] Finalize the AI input/output contract
 
 V2 week timestamps encode local calendar labels at UTC midnight; they are not

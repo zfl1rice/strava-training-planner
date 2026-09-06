@@ -1,6 +1,7 @@
+import { getPlanQueue, waitForQueue } from "@/lib/queue";
 import { NextRequest, NextResponse } from "next/server";
-import { generateAndSaveFlexiblePlan, getPlannerState, saveWeeklyGoals, PlanSyncInProgressError, PlanHasProtectedWorkoutsError } from "@pkg/db";
-import { WeeklyGoalsSchema, GenerationRequestSchema } from "@pkg/shared";
+import { createOrReusePlanRun, TrainingBusyError, getPlannerState, saveWeeklyGoals, PlanSyncInProgressError, PlanHasProtectedWorkoutsError } from "@pkg/db";
+import { WeeklyGoalsSchema, GenerationRequestSchema, JOBS, planJobId } from "@pkg/shared";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
 
 export const runtime = "nodejs";
@@ -27,12 +28,18 @@ export async function POST(request: NextRequest) {
     if (!user) return json({ error: "Connect Strava first" }, 401);
     // Client-supplied user IDs, budgets, dates, and workouts are never trusted.
     const raw = await request.text();
-    const parsed = GenerationRequestSchema.safeParse(raw ? JSON.parse(raw) : {});
+    let body: unknown = {};
+    try { body = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "Invalid generation request" }, 400); }
+    const parsed = GenerationRequestSchema.safeParse(body);
     if (!parsed.success) return json({ error: "Choose next week or the remaining week." }, 400);
-    await generateAndSaveFlexiblePlan(user.id, new Date(), parsed.data.scope);
-    return json(await getPlannerState(user.id));
+    const run = await createOrReusePlanRun(user.id, parsed.data);
+    try {
+      const queue = getPlanQueue(); await waitForQueue(queue);
+      await queue.add(JOBS.generatePlan, { jobRunId: run.id }, { jobId: planJobId(run.id) });
+    } catch { /* Persistent request will be recovered by the worker. */ }
+    return json(await getPlannerState(user.id), 202);
   } catch (error) {
-    if (error instanceof PlanSyncInProgressError || error instanceof PlanHasProtectedWorkoutsError) return json({ error: error.message }, 409);
+    if (error instanceof TrainingBusyError || error instanceof PlanSyncInProgressError || error instanceof PlanHasProtectedWorkoutsError) return json({ error: error.message }, 409);
     return json({ error: "Could not generate your weekly plan. Please try again." }, 503);
   }
 }

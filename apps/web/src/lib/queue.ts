@@ -1,10 +1,11 @@
 import { Queue } from "bullmq";
-import { bullConnectionFromUrl, QUEUES, JOBS, SYNC_ATTEMPTS, type PingJob, type SyncAthleteJob } from "@pkg/shared";
+import { bullConnectionFromUrl, QUEUES, JOBS, SYNC_ATTEMPTS, PLAN_ATTEMPTS, type GeneratePlanJob, type PingJob, type SyncAthleteJob } from "@pkg/shared";
 
 type PingQueue = Queue<PingJob, { processed: boolean; userId: number }, typeof JOBS.ping>;
 type SyncQueue = Queue<SyncAthleteJob, { activityCount: number }, typeof JOBS.syncAthlete>;
 // Cache both producers across Next.js hot reloads, preserving their distinct types.
-const queueCache = globalThis as unknown as { pingQueue?: PingQueue; syncQueue?: SyncQueue };
+type PlanQueue = Queue<GeneratePlanJob, unknown, typeof JOBS.generatePlan>;
+const queueCache = globalThis as unknown as { planQueue?: PlanQueue; pingQueue?: PingQueue; syncQueue?: SyncQueue };
 
 export function getSyncQueue(): SyncQueue {
   if (!queueCache.syncQueue) {
@@ -60,4 +61,14 @@ export async function waitForQueue(queue: { waitUntilReady(): Promise<unknown> }
   } finally {
     clearTimeout(timer);
   }
+}
+
+export function getPlanQueue(): PlanQueue {
+  if (!queueCache.planQueue) {
+    queueCache.planQueue = new Queue(QUEUES.jobs, { prefix: process.env.BULLMQ_PREFIX ?? "bull", connection: {
+      ...bullConnectionFromUrl(process.env.REDIS_URL), maxRetriesPerRequest: 1, enableOfflineQueue: false, connectTimeout: 5000,
+    }, defaultJobOptions: { attempts: PLAN_ATTEMPTS, backoff: { type: "exponential", delay: 2000 }, removeOnComplete: { count: 100 }, removeOnFail: { count: 100 } } });
+    queueCache.planQueue.on("error", () => console.error("Plan queue unavailable"));
+  }
+  return queueCache.planQueue;
 }

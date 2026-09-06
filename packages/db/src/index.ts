@@ -8,3 +8,4 @@ export * from "./planning-context.js";
 export * from "./planning-settings.js";
 
 export * from "./workout-feedback.js";
+export * from "./plan-jobs.js";

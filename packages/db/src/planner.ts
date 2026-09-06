@@ -40,16 +40,17 @@ export async function getPlannerState(userId: number, now = new Date()): Promise
   const monday = calendarMonday(localDateAt(now, user.timeZone));
   const currentWeekStart = new Date(`${monday}T00:00:00Z`);
   const nextWeekStart = new Date(`${addCalendarDays(monday, 7)}T00:00:00Z`);
-  const [goals, savedPlanRows] = await Promise.all([
+  const [goals, savedPlanRows, generation] = await Promise.all([
     getWeeklyGoals(userId),
     prisma.weeklyPlan.findMany({
       where: { userId, weekStart: { in: [currentWeekStart, nextWeekStart] } },
     }),
+    prisma.jobRun.findFirst({ where: { userId, jobType: "COMPUTE_PLAN" }, orderBy: { id: "desc" }, select: { id: true, status: true, error: true } }),
   ]);
   const currentPlan = savedPlanRows.find(row => row.weekStart.getTime() === currentWeekStart.getTime());
   const nextPlan = savedPlanRows.find(row => row.weekStart.getTime() === nextWeekStart.getTime());
   return {
-    goals,
+    goals, generation,
     nextWeekStart: nextWeekStart.toISOString(),
     currentPlan: currentPlan ? serializeSavedPlan(currentPlan) : null,
     nextPlan: nextPlan ? serializeSavedPlan(nextPlan) : null,
@@ -104,12 +105,13 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
 }
 
 
-export async function generateAndSaveFlexiblePlan(userId: number, now = new Date(), scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK"): Promise<SavedWeeklyPlan> {
-  return prisma.$transaction(async database => {
+export async function generateAndSaveFlexiblePlan(userId: number, now = new Date(), scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK", transaction?: Prisma.TransactionClient, requestedWeek?: string): Promise<SavedWeeklyPlan> {
+  const generate = async (database: Prisma.TransactionClient) => {
     await lockUserTraining(database, userId);
     const user = await database.user.findUniqueOrThrow({ where: { id: userId }, select: { timeZone: true } });
     const today = localDateAt(now, user.timeZone);
-    const weekStartDate = addCalendarDays(calendarMonday(today), scope === "NEXT_WEEK" ? 7 : 0);
+    const weekStartDate = requestedWeek ?? addCalendarDays(calendarMonday(today), scope === "NEXT_WEEK" ? 7 : 0);
+    if (addCalendarDays(weekStartDate, 7) <= today) throw new Error("Requested planning week has ended; request a new plan.");
     const context = await buildPlanningContext(userId, { now, weekStart: weekStartDate }, database);
     if (context.dataQuality.syncInProgress) throw new PlanSyncInProgressError("Wait for activity sync to finish before generating a plan.");
     const existing = context.existingPlans.find(plan => plan.content.weekStart.slice(0, 10) === weekStartDate);
@@ -133,5 +135,6 @@ export async function generateAndSaveFlexiblePlan(userId: number, now = new Date
       create: { userId, weekStart, content, workoutStates }, update: { content, workoutStates,
         updatedAt: new Date(Math.max(Date.now(), Date.parse(existing?.updatedAt ?? "1970-01-01") + 1)) } });
     return serializeSavedPlan(saved);
-  }, { timeout: 15000 });
+  };
+  return transaction ? generate(transaction) : prisma.$transaction(generate, { timeout: 15000 });
 }

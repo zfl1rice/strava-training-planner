@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PlanSportSchema, WeeklyGoalsSchema, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan } from "@pkg/shared";
 
 const formatPlanDate = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
@@ -56,6 +56,28 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
   const [goalFields, setGoalFields] = useState(() => goalsToFormFields(initialData.goals));
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const generation = plannerState.generation;
+  const pending = generation?.status === "PENDING" || generation?.status === "RUNNING";
+  const busy = generating || pending;
+  useEffect(() => {
+    if (!pending) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const response = await fetch("/api/planner", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
+        const state = await response.json();
+        if (!response.ok) throw new Error(state.error ?? "Could not check generation status.");
+        if (controller.signal.aborted) return;
+        setPlannerState(state);
+        if (state.generation?.status === "SUCCESS") { setMessage("Weekly plan saved."); onPlanSaved(); return; }
+        if (["FAILED", "CANCELLED"].includes(state.generation?.status)) { setError(state.generation.error ?? "Generation did not complete."); return; }
+      } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Could not check generation status."); }
+      if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 2000);
+    }
+    timer = setTimeout(() => void poll(), 1000);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [pending, generation?.id, onPlanSaved]);
   const savedGoalFields = goalsToFormFields(plannerState.goals);
   const hasUnsavedGoals = PlanSportSchema.options.some(sport => goalFields[sport] !== savedGoalFields[sport]);
   const customTotal = PlanSportSchema.options.reduce((sum, sport) => sum + (Number(goalFields[sport]) || 0), 0);
@@ -102,8 +124,7 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not generate your plan.");
       setPlannerState(result);
-      onPlanSaved();
-      setMessage("Weekly plan saved.");
+      setMessage("Generation queued. Your calendar updates when the worker finishes.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Could not generate your plan.");
     } finally {
@@ -116,7 +137,7 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
       <h2 id="planner-heading" className="text-xl font-semibold">Weekly plan</h2>
       <p className="text-sm">Generate an easy swim, bike, and run schedule for the week starting {formatPlanDate(plannerState.nextWeekStart)} using your profile timezone and availability.</p>
       <form onSubmit={event => { event.preventDefault(); void saveGoals(); }} className="space-y-3 rounded border p-4">
-        <fieldset disabled={saving || generating} className="space-y-3">
+        <fieldset disabled={saving || busy} className="space-y-3">
           <legend className="font-medium">Weekly goal minutes</legend>
           <p id="goal-help" className="text-sm">Leave blank for automatic targets, or enter 0 to skip a sport. Use 5-minute increments. With custom goals, blank sports without recorded history get no sessions.</p>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -135,13 +156,14 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
       </form>
       {hasUnsavedGoals && <p className="text-sm">Save your goal changes before generating a plan.</p>}
       {savedPlanUsesDifferentGoals && <p className="text-sm">The saved plan uses different goals. Regenerate to apply your current goals.</p>}
-      <button onClick={() => void generatePlan()} disabled={generating || saving || hasUnsavedGoals || syncActive}
+      <button onClick={() => void generatePlan()} disabled={busy || saving || hasUnsavedGoals || syncActive}
         className="rounded bg-orange-600 px-4 py-2 font-medium text-white disabled:opacity-50">
-        {generating ? "Generating..." : plannerState.nextPlan ? "Regenerate next week's plan" : "Generate next week's plan"}
+        {busy ? "Generating..." : plannerState.nextPlan ? "Regenerate next week's plan" : "Generate next week's plan"}
       </button>
-      <button type="button" className="calendar-nav ml-3" disabled={generating || saving || hasUnsavedGoals || syncActive} onClick={() => void generatePlan("REMAINING_WEEK")}>Regenerate the rest of this week</button>
+      <button type="button" className="calendar-nav ml-3" disabled={busy || saving || hasUnsavedGoals || syncActive} onClick={() => void generatePlan("REMAINING_WEEK")}>Regenerate the rest of this week</button>
       <p className="text-xs">Regeneration replaces eligible workouts from today onward. Past, completed, stopped, modified, and locked workouts are preserved.</p>
       {plannerState.nextPlan && <p className="text-xs">Regenerating uses saved goals, availability, adjustments, and latest stored history.</p>}
+      {pending && <p role="status">{generation?.status === "RUNNING" ? "Generating your plan?" : "Waiting for the worker?"} You can leave this page; generation continues in the background.</p>}
       {syncActive && <p className="text-sm">Wait for activity sync to finish before generating a plan.</p>}
       {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}

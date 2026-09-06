@@ -3,6 +3,7 @@ export const QUEUES = {
 } as const;
 
 export const JOBS = {
+  generatePlan: "generate_plan",
   ping: "ping",
   syncAthlete: "sync_athlete",
 } as const;
@@ -12,3 +13,6 @@ export const SYNC_ATTEMPTS = 5;
 export const SYNC_RECOVERY_INTERVAL_MS = 30000;
 export const SYNC_LEASE_MS = 120000;
 export const syncJobId = (jobRunId: number) => `sync-${jobRunId}`;
+
+export const planJobId = (jobRunId: number) => `plan-${jobRunId}`;
+export const PLAN_ATTEMPTS = 3;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createOrReuseSyncRun, getStravaConnectionStatus, getSyncDashboard } from "@pkg/db";
+import { TrainingBusyError, createOrReuseSyncRun, getStravaConnectionStatus, getSyncDashboard } from "@pkg/db";
 import { JOBS, SyncAthleteJobSchema, syncJobId } from "@pkg/shared";
 import { getSyncQueue, waitForQueue } from "@/lib/queue";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
     const payload = SyncAthleteJobSchema.parse({ jobRunId });
     await queue.add(JOBS.syncAthlete, payload, { jobId: syncJobId(jobRunId) });
     return json({ ok: true, jobRunId }, 202);
-  } catch {
+  } catch (error) {
+    if (error instanceof TrainingBusyError) return json({ error: error.message }, 409);
     // A committed intent remains pending even if Redis rejected the write or its
     // acknowledgement was lost. The worker reconciles it; duplicate callers must
     // never mark another caller's successfully enqueued job as failed.

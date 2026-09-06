@@ -81,7 +81,7 @@ export const WeeklyPlanSchema = z.object({
 
 export type WeeklyPlan = z.infer<typeof WeeklyPlanSchema>;
 export type SavedWeeklyPlan = { id: number; updatedAt: string; content: StoredPlan; workoutStates?: import("./athlete-profile.js").AthleteWorkoutStates };
-export type PlannerState = { goals: WeeklyGoals; nextWeekStart: string; currentPlan: SavedWeeklyPlan | null; nextPlan: SavedWeeklyPlan | null };
+export type PlannerState = { generation?: { id: number; status: string; error: string | null } | null; goals: WeeklyGoals; nextWeekStart: string; currentPlan: SavedWeeklyPlan | null; nextPlan: SavedWeeklyPlan | null };
 
 export function nextPlanWeek(now: Date): Date {
   return new Date(mondayUtc(now).getTime() + 7 * DAY_MS);

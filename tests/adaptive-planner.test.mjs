@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan, resolveWorkoutTargets } from "@pkg/shared";
-import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan, getPlanningSettings, updatePlanningSettings, updateWorkoutFeedback } from "@pkg/db";
+import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan, resolveWorkoutTargets, JOBS, QUEUES, planJobId, bullConnectionFromUrl } from "@pkg/shared";
+import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan, getPlanningSettings, updatePlanningSettings, updateWorkoutFeedback, createOrReusePlanRun, executePlanRun, createOrReuseSyncRun } from "@pkg/db";
 
 assert.match(process.env.OAUTH_TEST_DATABASE ?? "", /^planner_oauth_test_[a-f0-9]{16}$/);
 assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${process.env.OAUTH_TEST_DATABASE}`);
@@ -158,4 +158,64 @@ test("sync conflict leaves the saved plan intact", async () => {
   await prisma.jobRun.create({ data: { userId: user.id, jobType: "STRAVA_SYNC", status: "PENDING" } });
   await assert.rejects(generateAndSaveFlexiblePlan(user.id, now), /sync/);
   assert.deepEqual((await prisma.weeklyPlan.findUnique({ where: { id: first.id } })).content, first.content);
+});
+
+test("generation requests reuse pending work, exclude sync, and consume a real typed BullMQ job once", async () => {
+  const { Queue, Worker, QueueEvents } = await import("bullmq");
+  const { processJob } = await import("../apps/worker/src/processor.ts");
+  const connection = bullConnectionFromUrl(process.env.REDIS_URL);
+  const prefix = `${process.env.OAUTH_TEST_DATABASE}-generation`;
+  assert.match(prefix, /^planner_oauth_test_[a-f0-9]{16}-generation$/);
+  const queue = new Queue(QUEUES.jobs, { connection, prefix });
+  const events = new QueueEvents(QUEUES.jobs, { connection, prefix });
+  const worker = new Worker(QUEUES.jobs, processJob, { connection: { ...connection, maxRetriesPerRequest: null }, prefix });
+  let testJob;
+  try {
+    await events.waitUntilReady();
+    await configuredContext();
+    const [one, two] = await Promise.all([createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" }), createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" })]);
+    assert.equal(one.id, two.id);
+    await assert.rejects(createOrReuseSyncRun(user.id), /generation/);
+    testJob = await queue.add(JOBS.generatePlan, { jobRunId: one.id }, { jobId: planJobId(one.id), attempts: 3, backoff: { type: "exponential", delay: 2000 } });
+    assert.deepEqual(testJob.data, { jobRunId: one.id });
+    assert.equal((await testJob.waitUntilFinished(events, 15000)).status, "SUCCESS");
+    const saved = await prisma.weeklyPlan.findFirst({ where: { userId: user.id } });
+    assert.ok(saved);
+    assert.equal((await executePlanRun(one.id)).status, "SUCCESS");
+    assert.equal((await prisma.weeklyPlan.findUnique({ where: { id: saved.id } })).updatedAt.toISOString(), saved.updatedAt.toISOString());
+    assert.equal((await prisma.jobRun.findUnique({ where: { id: one.id } })).attemptsStarted, 1);
+  } finally { await worker.close(); await events.close(); await testJob?.remove(); await queue.close(); }
+});
+
+test("missing Redis generation jobs recover from Postgres without enlarging payloads", async () => {
+  const { Queue } = await import("bullmq");
+  const { recoverMissingPlanJobs } = await import("../apps/worker/src/plan-recovery.ts");
+  const prefix = `${process.env.OAUTH_TEST_DATABASE}-recovery`;
+  assert.match(prefix, /^planner_oauth_test_[a-f0-9]{16}-recovery$/);
+  const queue = new Queue(QUEUES.jobs, { connection: bullConnectionFromUrl(process.env.REDIS_URL), prefix });
+  let testJob;
+  try {
+    const run = await createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" });
+    await recoverMissingPlanJobs(queue);
+    testJob = await queue.getJob(planJobId(run.id));
+    assert.deepEqual(testJob.data, { jobRunId: run.id });
+    await recoverMissingPlanJobs(queue);
+    assert.equal((await queue.getJobs(["waiting", "delayed"])).length, 1);
+  } finally { await testJob?.remove(); await queue.close(); }
+});
+
+test("generation retry count persists and exhausted failures leave the previous plan intact", async () => {
+  await configuredContext();
+  const original = await generateAndSaveFlexiblePlan(user.id, now);
+  const run = await createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" });
+  await prisma.jobRun.update({ where: { id: run.id }, data: { planRequest: { broken: true } } });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await prisma.jobRun.update({ where: { id: run.id }, data: { nextRetryAt: null } });
+    await assert.rejects(executePlanRun(run.id), /Generation/);
+    const current = await prisma.jobRun.findUnique({ where: { id: run.id } });
+    assert.equal(current.attemptsStarted, attempt);
+    assert.equal(current.status, attempt === 3 ? "FAILED" : "PENDING");
+  }
+  assert.equal((await executePlanRun(run.id)).status, "FAILED");
+  assert.deepEqual((await prisma.weeklyPlan.findUnique({ where: { id: original.id } })).content, original.content);
 });

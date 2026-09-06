@@ -154,6 +154,7 @@ model JobRun {
   nextRetryAt DateTime?
   leaseExpiresAt DateTime?
 
+  planRequest Json?
   jobType    SyncJobType @default(STRAVA_SYNC)
 
   userId     Int
