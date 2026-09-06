@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAndSaveFlexiblePlan, getPlannerState, saveWeeklyGoals, PlanSyncInProgressError, PlanHasProtectedWorkoutsError } from "@pkg/db";
-import { WeeklyGoalsSchema } from "@pkg/shared";
+import { WeeklyGoalsSchema, GenerationRequestSchema } from "@pkg/shared";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
 
 export const runtime = "nodejs";
@@ -26,7 +26,10 @@ export async function POST(request: NextRequest) {
     const user = await userFromSession(request.cookies.get(SESSION_COOKIE)?.value);
     if (!user) return json({ error: "Connect Strava first" }, 401);
     // Client-supplied user IDs, budgets, dates, and workouts are never trusted.
-    await generateAndSaveFlexiblePlan(user.id);
+    const raw = await request.text();
+    const parsed = GenerationRequestSchema.safeParse(raw ? JSON.parse(raw) : {});
+    if (!parsed.success) return json({ error: "Choose next week or the remaining week." }, 400);
+    await generateAndSaveFlexiblePlan(user.id, new Date(), parsed.data.scope);
     return json(await getPlannerState(user.id));
   } catch (error) {
     if (error instanceof PlanSyncInProgressError || error instanceof PlanHasProtectedWorkoutsError) return json({ error: error.message }, 409);

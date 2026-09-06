@@ -1,5 +1,5 @@
 import { buildPlanningContext } from "./planning-context.js";
-import { generateFlexiblePlan, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
+import { generateFlexiblePlan, calendarWorkouts, easyWorkout, type StructuredWorkout, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
 import {
   AUTOMATIC_WEEKLY_GOALS, WeeklyGoalsSchema, generateWeeklyPlan, mondayUtc,
   nextPlanWeek, validateStoredPlan, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan,
@@ -103,17 +103,35 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
   }, { isolationLevel: "ReadCommitted", timeout: 10000 });
 }
 
-export async function generateAndSaveFlexiblePlan(userId: number, now = new Date()): Promise<SavedWeeklyPlan> {
+
+export async function generateAndSaveFlexiblePlan(userId: number, now = new Date(), scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK"): Promise<SavedWeeklyPlan> {
   return prisma.$transaction(async database => {
     await lockUserTraining(database, userId);
-    const context = await buildPlanningContext(userId, { now }, database);
+    const user = await database.user.findUniqueOrThrow({ where: { id: userId }, select: { timeZone: true } });
+    const today = localDateAt(now, user.timeZone);
+    const weekStartDate = addCalendarDays(calendarMonday(today), scope === "NEXT_WEEK" ? 7 : 0);
+    const context = await buildPlanningContext(userId, { now, weekStart: weekStartDate }, database);
     if (context.dataQuality.syncInProgress) throw new PlanSyncInProgressError("Wait for activity sync to finish before generating a plan.");
-    const existing = context.existingPlans.find(plan => plan.content.weekStart.slice(0, 10) === context.targetWeek.startDate);
-    if (existing?.workoutStates.some(state => state.locked || state.completion !== "PLANNED")) throw new PlanHasProtectedWorkoutsError("This week contains protected workouts; replacement is not available yet.");
-    const content = generateFlexiblePlan(context);
+    const existing = context.existingPlans.find(plan => plan.content.weekStart.slice(0, 10) === weekStartDate);
+    const preserved: StructuredWorkout[] = [];
+    for (const workout of existing ? calendarWorkouts(existing.content) : []) {
+      const state = existing!.workoutStates.find(value => (value.workoutId ?? `${value.date}:${value.templateId}`) === workout.id);
+      if (workout.date < today || state?.locked || (state && state.completion !== "PLANNED")) {
+        if ("blocks" in workout) { const { steps: _steps, ...original } = workout; preserved.push(original); }
+        else preserved.push({ ...easyWorkout(workout.id, workout.date, workout.sport, workout.durationMinutes),
+          title: workout.title, templateId: workout.templateId, effort: workout.effort, optional: workout.optional,
+          explanation: "Preserved legacy workout; original durations and instructions retained.",
+          blocks: [{ repeat: 1, segments: workout.steps.map(step => ({ label: step.label, seconds: step.minutes * 60,
+            instructions: step.instructions, target: { metric: "RPE", lower: 2, upper: 4 } })) }],
+        });
+      }
+    }
+    const content = generateFlexiblePlan(context, { preserved, fromDate: scope === "REMAINING_WEEK" ? today : weekStartDate });
+    const workoutStates = existing?.workoutStates.filter(state => preserved.some(workout => workout.id === (state.workoutId ?? `${state.date}:${state.templateId}`))) ?? [];
     const weekStart = new Date(content.weekStart);
     const saved = await database.weeklyPlan.upsert({ where: { userId_weekStart: { userId, weekStart } },
-      create: { userId, weekStart, content }, update: { content, workoutStates: [] } });
+      create: { userId, weekStart, content, workoutStates }, update: { content, workoutStates,
+        updatedAt: new Date(Math.max(Date.now(), Date.parse(existing?.updatedAt ?? "1970-01-01") + 1)) } });
     return serializeSavedPlan(saved);
   }, { timeout: 15000 });
 }

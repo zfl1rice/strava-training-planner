@@ -93,12 +93,12 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
     }
   }
 
-  async function generatePlan() {
+  async function generatePlan(scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK") {
     setGenerating(true);
     setError(null);
     setMessage(null);
     try {
-      const response = await fetch("/api/planner", { method: "POST", signal: AbortSignal.timeout(15000) });
+      const response = await fetch("/api/planner", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope }), signal: AbortSignal.timeout(15000) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not generate your plan.");
       setPlannerState(result);
@@ -139,7 +139,9 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
         className="rounded bg-orange-600 px-4 py-2 font-medium text-white disabled:opacity-50">
         {generating ? "Generating..." : plannerState.nextPlan ? "Regenerate next week's plan" : "Generate next week's plan"}
       </button>
-      {plannerState.nextPlan && <p className="text-xs">Regenerating replaces the saved plan for next week using your saved goals and latest stored history.</p>}
+      <button type="button" className="calendar-nav ml-3" disabled={generating || saving || hasUnsavedGoals || syncActive} onClick={() => void generatePlan("REMAINING_WEEK")}>Regenerate the rest of this week</button>
+      <p className="text-xs">Regeneration replaces eligible workouts from today onward. Past, completed, stopped, modified, and locked workouts are preserved.</p>
+      {plannerState.nextPlan && <p className="text-xs">Regenerating uses saved goals, availability, adjustments, and latest stored history.</p>}
       {syncActive && <p className="text-sm">Wait for activity sync to finish before generating a plan.</p>}
       {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}

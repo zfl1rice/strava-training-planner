@@ -134,3 +134,28 @@ test("dated adjustments reduce planned volume without rewriting goals and restri
   assert.equal(plan.budgets.RUN.plannedMinutes, 0);
   assert.ok(calendarWorkouts(plan).filter(w => w.sport === "BIKE").every(w => w.blocks[0].segments[1].target.upper === 2));
 });
+
+test("remaining-week regeneration preserves past and locked workouts while applying new goals", async () => {
+  await configuredContext();
+  const first = await generateAndSaveFlexiblePlan(user.id, now);
+  const workouts = calendarWorkouts(first.content);
+  const locked = workouts.find(w => w.date === "2026-09-12");
+  await updateWorkoutFeedback(user.id, { planId: first.id, workoutId: locked.id, expectedUpdatedAt: first.updatedAt,
+    locked: true, completion: "PLANNED", rpe: null, comment: "Keep this one" });
+  await saveWeeklyGoals(user.id, { RUN: 0, BIKE: 0, SWIM: 0 });
+  const updated = await generateAndSaveFlexiblePlan(user.id, new Date("2026-09-10T15:00:00Z"), "REMAINING_WEEK");
+  const retained = calendarWorkouts(updated.content);
+  assert.equal(updated.id, first.id);
+  assert.ok(retained.every(w => w.date < "2026-09-10" || w.id === locked.id));
+  assert.deepEqual(retained.find(w => w.id === locked.id), locked);
+  for (const old of workouts.filter(w => w.date < "2026-09-10")) assert.deepEqual(retained.find(w => w.id === old.id), old);
+  assert.equal((await buildPlanningContext(user.id, { now: new Date("2026-09-10T15:00:00Z"), weekStart: "2026-09-07" })).existingPlans[0].workoutStates[0].feedback.comment, "Keep this one");
+});
+
+test("sync conflict leaves the saved plan intact", async () => {
+  await configuredContext();
+  const first = await generateAndSaveFlexiblePlan(user.id, now);
+  await prisma.jobRun.create({ data: { userId: user.id, jobType: "STRAVA_SYNC", status: "PENDING" } });
+  await assert.rejects(generateAndSaveFlexiblePlan(user.id, now), /sync/);
+  assert.deepEqual((await prisma.weeklyPlan.findUnique({ where: { id: first.id } })).content, first.content);
+});

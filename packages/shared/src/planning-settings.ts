@@ -44,3 +44,7 @@ export const WorkoutFeedbackMutationSchema = z.object({
   completion: z.enum(["PLANNED", "COMPLETED", "MODIFIED", "STOPPED"]), locked: z.boolean(),
   comment: z.string().max(4000), rpe: z.number().int().min(1).max(10).nullable(),
 }).strict();
+
+export const GenerationRequestSchema = z.object({
+  scope: z.enum(["NEXT_WEEK", "REMAINING_WEEK"]).default("NEXT_WEEK"),
+}).strict();

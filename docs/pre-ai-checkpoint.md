@@ -11,7 +11,8 @@ are introduced by this sequence.
   pace input, relative intensity charts, and explicit missing baselines.
 - [x] Add feedback and adjustment controls: completion, locks, RPE/comments,
   dated volume/intensity settings and explicit restrictions.
-- [ ] Implement regeneration boundaries
+- [x] Implement regeneration boundaries: current remainder or next week; atomic
+  replacement preserves past and protected workouts and their feedback.
 - [ ] Prepare background generation
 - [ ] Finalize the AI input/output contract
 
