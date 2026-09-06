@@ -7,8 +7,11 @@ The [PlanningContext checkpoint](docs/planning-context.md) adds athlete profiles
 race demands, evidence history, availability, and restrictions for future planning.
 See the [seeded context example](docs/planning-context.example.json). The sidebar now
 provides [Profile, Goals, and Availability screens](docs/planning-settings.md).
-These save planning inputs; the existing v1 planner does not yet apply them.
-AI calls are not implemented.
+New plans use those settings through the [pre-AI generation flow](docs/pre-ai-checkpoint.md):
+web request → BullMQ → worker → validated v2 plan → Postgres → calendar.
+Workouts support intervals, numeric targets, feedback, and protected regeneration.
+The Adjustments page supports temporary volume/intensity changes and restrictions.
+Old v1 plans remain readable. AI calls are not implemented.
 
 ## Strava connection setup
 

@@ -1,5 +1,10 @@
 # Planning settings UI — September 6, 2026
 
+**Historical checkpoint:** The subsequent [pre-AI generation work](pre-ai-checkpoint.md)
+now applies availability/timezone, resolves targets, and adds restrictions, temporary
+adjustments, and feedback. The original implementation notes below describe the
+settings-only increment; consult the newer checkpoint for current behavior.
+
 This increment exposes the existing PlanningContext storage through Profile, Goals,
 and Availability pages. A responsive sidebar connects them to the calendar. Settings
 are persisted in Postgres for the signed-in athlete; the deterministic v1 planner

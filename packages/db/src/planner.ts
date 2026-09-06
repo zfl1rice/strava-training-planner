@@ -1,5 +1,5 @@
 import { buildPlanningContext } from "./planning-context.js";
-import { generateFlexiblePlan, calendarWorkouts, easyWorkout, type StructuredWorkout, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
+import { runPlanGeneration, type PlanProvider, calendarWorkouts, easyWorkout, type StructuredWorkout, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
 import {
   AUTOMATIC_WEEKLY_GOALS, WeeklyGoalsSchema, generateWeeklyPlan, mondayUtc,
   nextPlanWeek, validateStoredPlan, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan,
@@ -27,7 +27,10 @@ export async function getWeeklyGoals(
 export async function saveWeeklyGoals(userId: number, input: WeeklyGoals): Promise<WeeklyGoals> {
   const goals = WeeklyGoalsSchema.parse(input);
   const values = { runMinutes: goals.RUN, bikeMinutes: goals.BIKE, swimMinutes: goals.SWIM };
-  await prisma.weeklyGoals.upsert({ where: { userId }, create: { userId, ...values }, update: values });
+  await prisma.$transaction(async database => {
+    await lockUserTraining(database, userId);
+    await database.weeklyGoals.upsert({ where: { userId }, create: { userId, ...values }, update: values });
+  });
   return goals;
 }
 
@@ -105,7 +108,7 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
 }
 
 
-export async function generateAndSaveFlexiblePlan(userId: number, now = new Date(), scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK", transaction?: Prisma.TransactionClient, requestedWeek?: string): Promise<SavedWeeklyPlan> {
+export async function generateAndSaveFlexiblePlan(userId: number, now = new Date(), scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK", transaction?: Prisma.TransactionClient, requestedWeek?: string, provider?: PlanProvider): Promise<SavedWeeklyPlan> {
   const generate = async (database: Prisma.TransactionClient) => {
     await lockUserTraining(database, userId);
     const user = await database.user.findUniqueOrThrow({ where: { id: userId }, select: { timeZone: true } });
@@ -128,7 +131,7 @@ export async function generateAndSaveFlexiblePlan(userId: number, now = new Date
         });
       }
     }
-    const content = generateFlexiblePlan(context, { preserved, fromDate: scope === "REMAINING_WEEK" ? today : weekStartDate });
+    const content = runPlanGeneration(context, today > weekStartDate ? today : weekStartDate, preserved, provider);
     const workoutStates = existing?.workoutStates.filter(state => preserved.some(workout => workout.id === (state.workoutId ?? `${state.date}:${state.templateId}`))) ?? [];
     const weekStart = new Date(content.weekStart);
     const saved = await database.weeklyPlan.upsert({ where: { userId_weekStart: { userId, weekStart } },

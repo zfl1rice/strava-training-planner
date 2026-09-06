@@ -72,6 +72,11 @@ export const PlanningContextSchema = z.object({
   restrictions: z.array(RestrictionSchema),
   adjustments: z.array(TrainingAdjustmentSchema).default([]),
   existingPlans: z.array(ExistingContextPlanSchema),
+  recentFeedback: z.array(z.object({ date: LocalDateSchema, sport: z.enum(["RUN", "BIKE", "SWIM"]), title: z.string(),
+    completion: z.enum(["PLANNED", "COMPLETED", "MODIFIED", "STOPPED"]),
+    comment: z.string(), rpe: z.number().int().min(1).max(10).nullable(),
+  }).strict()).max(200).default([]),
+  feedbackTruncated: z.boolean().default(false),
   dataQuality: z.object({
     lastSuccessfulSyncAt: Timestamp.nullable(), syncInProgress: z.boolean(),
     latestSyncStatus: z.enum(["PENDING", "RUNNING", "SUCCESS", "FAILED", "CANCELLED"]).nullable(),

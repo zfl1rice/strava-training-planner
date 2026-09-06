@@ -11,9 +11,13 @@ export async function createOrReusePlanRun(userId: number, input: unknown, now =
     await lockUserTraining(database, userId);
     if (await database.jobRun.findFirst({ where: { userId, jobType: "STRAVA_SYNC", status: { in: ["PENDING", "RUNNING"] } } })) throw new TrainingBusyError("Wait for activity sync to finish before generating a plan.");
     const existing = await database.jobRun.findFirst({ where: { userId, jobType: "COMPUTE_PLAN", status: { in: ["PENDING", "RUNNING"] } } });
-    if (existing) return existing;
     const user = await database.user.findUniqueOrThrow({ where: { id: userId } });
     const weekStart = addCalendarDays(calendarMonday(localDateAt(now, user.timeZone)), request.scope === "NEXT_WEEK" ? 7 : 0);
+    if (existing) {
+      const pending = GenerationRequestSchema.extend({ weekStart: LocalDateSchema }).parse(existing.planRequest);
+      if (pending.scope !== request.scope || pending.weekStart !== weekStart) throw new TrainingBusyError("A different generation request is already pending. Wait for it to finish.");
+      return existing;
+    }
     return database.jobRun.create({ data: { userId, jobType: "COMPUTE_PLAN", planRequest: { ...request, weekStart }, createdAt: now } });
   });
 }

@@ -20,9 +20,19 @@ export function resolveWorkoutTargets(workout: StructuredWorkout, fitness: Plann
 
 export function targetDescription(segment: StructuredWorkout["blocks"][number]["segments"][number]): string {
   const relative = `${segment.target.lower}–${segment.target.upper} ${segment.target.metric === "RPE" ? "RPE" : segment.target.metric === "FTP_PERCENT" ? "% FTP" : segment.target.metric === "MAX_HR_PERCENT" ? "% max HR" : "% threshold pace (time)"}`;
+  if (segment.target.metric === "RPE") return relative;
   const resolved = segment.resolved;
   if (!resolved) return `${relative} · baseline unavailable`;
   if (resolved.unit === "RPE") return relative;
   const units = { WATTS: "W", BPM: "bpm", SECONDS_PER_KM: "s/km", SECONDS_PER_100M: "s/100 m", SECONDS_PER_100YD: "s/100 yd" };
   return `${relative} · ${resolved.lower}–${resolved.upper} ${units[resolved.unit]}`;
+}
+
+// Conservative classification from the hardest target, independent of provider labels.
+// These thresholds are scheduling policy, not a physiological load calculation.
+export function workoutEffort(workout: StructuredWorkout): StructuredWorkout["effort"] {
+  const targets = workout.blocks.flatMap(block => block.segments.map(segment => segment.target));
+  const hard = targets.some(target => target.metric === "RPE" ? target.upper > 6 : target.metric === "FTP_PERCENT" ? target.upper > 90 : target.metric === "MAX_HR_PERCENT" ? target.upper > 85 : target.lower < 105);
+  const moderate = targets.some(target => target.metric === "RPE" ? target.upper > 4 : target.metric === "FTP_PERCENT" ? target.upper > 75 : target.metric === "MAX_HR_PERCENT" ? target.upper > 75 : target.lower < 115);
+  return hard ? "HARD" : moderate ? "MODERATE" : "EASY";
 }

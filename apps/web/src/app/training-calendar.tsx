@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import WorkoutFeedbackForm from "./workout-feedback-form";
 import WorkoutChart from "./workout-chart";
 import { useEffect, useRef, useState } from "react";
@@ -52,7 +53,7 @@ function WorkoutDetails({ entry, onClose, onSaved }: { entry: CalendarEntry | nu
         </p>
         {entry.kind === "planned" ? (
           <div>{"blocks" in entry.workout && <><WorkoutChart workout={entry.workout} /><p className="mb-4 text-sm">{entry.workout.explanation}</p></>}<ol className="space-y-3">
-            {entry.workout.steps.map(step => <li key={`${step.label}-${step.minutes}`} className="rounded-lg bg-slate-50 p-4">
+            {entry.workout.steps.map((step, index) => <li key={index} className="rounded-lg bg-slate-50 p-4">
               <h3 className="font-medium">{step.label} <span className="font-normal text-slate-500">· {step.minutes} min</span></h3>
               <p className="mt-1 text-sm leading-6 text-slate-600">{step.instructions}</p>
             </li>)}
@@ -137,7 +138,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3 text-xs text-slate-500">
         <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Completed</span>
         <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" />Planned</span>
-        <span>Monday–Sunday · UTC · Click a workout for details</span>
+        <span>Monday–Sunday · {data?.timeZone ?? "UTC"} · Click a workout for details</span>
         <span role="status" className="ml-auto">{loading ? "Loading calendar…" : data && entries.length === 0 ? "No saved activities or workouts in this view." : ""}</span>
       </div>
       {error && <p role="alert" className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm text-red-800">
@@ -154,6 +155,8 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
             const weekEntries = entries.filter(entry => entry.date >= week[0] && entry.date <= week[6]);
             const completedMinutes = weekEntries.filter(entry => entry.kind === "completed").reduce((sum, entry) => sum + entryMinutes(entry), 0);
             const plannedMinutes = weekEntries.filter(entry => entry.kind === "planned").reduce((sum, entry) => sum + entryMinutes(entry), 0);
+            const savedWeek = data?.plans.find(plan => plan.content.weekStart.slice(0, 10) === week[0]);
+            const goalMinutes = savedWeek ? Object.values(savedWeek.content.budgets).reduce((sum, budget) => sum + budget.targetMinutes, 0) : 0;
             return <tr key={week[0]}>
               <th scope="row" className="calendar-week">
                 <p className="mb-4 font-medium text-slate-700">Week of {new Date(week[0]).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</p>
@@ -161,6 +164,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
                   <div className="flex justify-between gap-2"><dt>Completed</dt><dd className="font-semibold text-emerald-700">{loading || error ? "—" : formatTotal(completedMinutes)}</dd></div>
                   <div className="flex justify-between gap-2"><dt>Planned</dt><dd className="font-semibold text-blue-700">{loading || error ? "—" : formatTotal(plannedMinutes)}</dd></div>
                 </dl>
+                {savedWeek && plannedMinutes < goalMinutes && <p className="mt-3 text-xs font-normal text-slate-500">{formatTotal(goalMinutes - plannedMinutes)} below goal. <Link href="/settings/goals" className="underline">Adjust goals</Link></p>}
               </th>
               {week.map(date => <td key={date} className={`${date.startsWith(month) ? "" : "calendar-outside"} ${date === today ? "calendar-today" : ""}`}>
                 <div className="mb-3 flex items-center justify-between text-xs text-slate-400">

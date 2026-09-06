@@ -3,6 +3,18 @@
 The [detailed design draft](design.md) documents current behavior and open decisions.
 Proposals in that document do not change the implementation status below.
 
+## Current pre-AI generation checkpoint
+
+- [x] All seven [pre-AI generation steps](pre-ai-checkpoint.md), committed separately.
+- [x] Flexible workouts, local availability scheduling, baseline targets and charts.
+- [x] Feedback, restrictions, temporary adjustments, and protected regeneration.
+- [x] Typed generation queue, persistent retries/recovery, and status polling.
+- [x] Validated provider contract with simulated custom-workout and rejection tests.
+- [ ] AI calls, automatic performance inference, and race-specific training selection.
+
+The dated sections below record earlier checkpoints. Their deferred items may have
+been completed by the latest increment; the linked checklist is the current reference.
+
 ## September 6 PlanningContext checkpoint
 
 - [x] Additive profile, timezone, race, evidence-history, and workout-state storage.

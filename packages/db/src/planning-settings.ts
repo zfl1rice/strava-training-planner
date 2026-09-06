@@ -1,3 +1,4 @@
+import { lockUserTraining } from "./training-lock.js";
 import {
   AthleteProfileSchema, EditableRaceSchema, PlanningSettingsMutationSchema, RaceGoalSchema,
   emptyAthleteProfile, type PlanningSettings, type EditableRace,
@@ -50,6 +51,7 @@ function demandsChanged(previous: EditableRace, next: EditableRace): boolean {
 export async function updatePlanningSettings(userId: number, input: unknown): Promise<PlanningSettings> {
   const change = PlanningSettingsMutationSchema.parse(input);
   return prisma.$transaction(async database => {
+    await lockUserTraining(database, userId);
     // Serializes editor writes, including creation of the first profile row.
     const locked = await database.$queryRaw<{ id: number }[]>`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
     if (!locked.length) throw new PlanningSettingsNotFoundError("Athlete not found.");

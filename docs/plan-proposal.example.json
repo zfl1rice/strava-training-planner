@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "explanation": "Illustrative contract fixture for a custom interval workout; the application validates it against the athlete's actual context before saving.",
+  "workouts": [
+    {
+      "kind": "WORKOUT",
+      "id": "example-bike-intervals",
+      "date": "2026-09-08",
+      "templateId": null,
+      "sport": "BIKE",
+      "title": "Example 4 x 2-minute intervals",
+      "effort": "HARD",
+      "explanation": "A structured workout can contain warm-up, repeated work/recovery pairs, and cool-down without an existing template ID.",
+      "optional": false,
+      "durationMinutes": 30,
+      "blocks": [
+        { "repeat": 1, "segments": [
+          { "label": "Warm-up", "seconds": 300, "instructions": "Pedal gently.", "target": { "metric": "FTP_PERCENT", "lower": 45, "upper": 55 } }
+        ] },
+        { "repeat": 4, "segments": [
+          { "label": "Work", "seconds": 120, "instructions": "Follow the work target.", "target": { "metric": "FTP_PERCENT", "lower": 110, "upper": 120 } },
+          { "label": "Recover", "seconds": 180, "instructions": "Pedal gently between efforts.", "target": { "metric": "RPE", "lower": 2, "upper": 3 } }
+        ] },
+        { "repeat": 1, "segments": [
+          { "label": "Cool-down", "seconds": 300, "instructions": "Finish gently.", "target": { "metric": "RPE", "lower": 2, "upper": 3 } }
+        ] }
+      ]
+    }
+  ]
+}

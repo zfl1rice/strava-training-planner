@@ -1,5 +1,5 @@
 import {
-  AthleteProfileSchema, CAPABILITIES, CapabilitySchema, ExistingContextPlanSchema,
+  calendarWorkouts, validateStoredPlan, AthleteProfileSchema, CAPABILITIES, CapabilitySchema, ExistingContextPlanSchema,
   LocalDateSchema, PerformanceEvidenceSchema, PlanningContextSchema, PlanningTimestampSchema, RaceGoalSchema,
   TimeZoneSchema, WorkoutStatesSchema, addCalendarDays, calendarMonday, calendarWeekday,
   emptyAthleteProfile, localDateAt, summarizeTraining,
@@ -30,6 +30,7 @@ export async function saveAthleteProfile(userId: number, input: unknown, timeZon
   const profile = AthleteProfileSchema.parse(input);
   const zone = TimeZoneSchema.parse(timeZone);
   await prisma.$transaction(async database => {
+    await lockUserTraining(database, userId);
     await assertOwnedEvidence(database, userId, profileEvidenceIds(profile));
     await database.user.update({ where: { id: userId }, data: { timeZone: zone } });
     await database.athleteProfile.upsert({ where: { userId }, create: { userId, content: profile }, update: { content: profile } });
@@ -126,6 +127,15 @@ export async function buildPlanningContext(
       database.jobRun.findFirst({ where: { userId, jobType: "STRAVA_SYNC" }, orderBy: { id: "desc" }, select: { status: true } }),
       database.jobRun.findFirst({ where: { userId, jobType: "STRAVA_SYNC", status: { in: ["PENDING", "RUNNING"] } }, select: { id: true } }),
     ]);
+    const feedbackPlans = await database.weeklyPlan.findMany({ where: { userId, weekStart: { gte: new Date(`${addCalendarDays(currentMonday, -28)}T00:00:00Z`), lte: new Date(`${currentMonday}T00:00:00Z`) } }, orderBy: { weekStart: "desc" } });
+    const feedback = feedbackPlans.flatMap(plan => {
+      const workouts = calendarWorkouts(validateStoredPlan(plan.content));
+      return WorkoutStatesSchema.parse(plan.workoutStates).flatMap(state => {
+        const workout = workouts.find(value => value.id === (state.workoutId ?? `${state.date}:${state.templateId}`));
+        return state.feedback && workout ? [{ date: state.date, sport: workout.sport, title: workout.title,
+          completion: state.completion, ...state.feedback }] : [];
+      });
+    }).sort((a, b) => b.date.localeCompare(a.date));
     const missingCitedIds = citedIds.filter(id => !evidence.some(row => row.id === id));
     if (missingCitedIds.length) evidence.push(...await database.performanceEvidence.findMany({ where: { userId, id: { in: missingCitedIds } } }));
     if (evidence.some(row => row.occurredAt > now)) throw new Error("Profile references evidence after the context timestamp");
@@ -175,6 +185,7 @@ export async function buildPlanningContext(
       availability: { recurring: profile.availability.recurring, days },
       adjustments: (profile.adjustments ?? []).filter(value => value.startDate < endDate && value.endDate >= startDate),
       restrictions: profile.restrictions.filter(value => value.startDate < endDate && (!value.endDate || value.endDate >= startDate)),
+      recentFeedback: feedback.slice(0, 200), feedbackTruncated: feedback.length > 200,
       existingPlans: plans.map(plan => ({ id: plan.id, updatedAt: plan.updatedAt.toISOString(), content: plan.content,
         workoutStates: plan.workoutStates })),
       dataQuality: { lastSuccessfulSyncAt: connection?.lastSuccessfulSyncAt?.toISOString() ?? null,

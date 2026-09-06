@@ -1,4 +1,4 @@
-import { resolveWorkoutTargets } from "./workout-targets.js";
+import { resolveWorkoutTargets, workoutEffort } from "./workout-targets.js";
 import { PlanSportSchema, type PlanSport } from "./planner.js";
 import type { PlanningContext } from "./planning-context.js";
 import { FlexiblePlanSchema, type FlexiblePlan, type StructuredWorkout } from "./structured-workouts.js";
@@ -28,14 +28,9 @@ export function easyWorkout(id: string, date: string, sport: PlanSport, minutes:
 
 export function generateFlexiblePlan(context: PlanningContext, options: { preserved?: StructuredWorkout[]; fromDate?: string } = {}): FlexiblePlan {
   const completed = context.recentTraining.weeks.filter(week => !week.isCurrentWeek);
-  const keys = { RUN: "run", BIKE: "bike", SWIM: "swim" } as const;
-  const budgets = Object.fromEntries(PlanSportSchema.options.map(sport => {
-    const averageMinutes = completed.reduce((sum, week) => sum + week[keys[sport]].durationMinutes, 0) / 3;
-    return [sport, { averageMinutes, activeWeeks: completed.filter(week => week[keys[sport]].durationSeconds > 0).length,
-      targetMinutes: context.goals[sport] ?? Math.floor(averageMinutes / 5) * 5, plannedMinutes: 0 }];
-  })) as FlexiblePlan["budgets"];
-  const adjustmentFor = (date: string, sport: PlanSport) => [...context.adjustments].reverse().find(item => (!item.sport || item.sport === sport) && item.startDate <= date && item.endDate >= date);
-  const desired = Object.fromEntries(PlanSportSchema.options.map(sport => [sport, Math.floor(budgets[sport].targetMinutes * context.availability.days.reduce((sum, day) => sum + (adjustmentFor(day.date, sport)?.volumePercent ?? 100), 0) / 700 / 5) * 5])) as Record<PlanSport, number>;
+  const budgets = planningBudgets(context);
+  const adjustmentFor = (date: string, sport: PlanSport) => matchingAdjustment(context, date, sport);
+  const desired = allocationTargets(context, options.preserved ?? []);
   const workouts: StructuredWorkout[] = structuredClone(options.preserved ?? []);
   const protectedIds = new Set(workouts.map(workout => workout.id));
   for (const sport of PlanSportSchema.options) budgets[sport].plannedMinutes = workouts.filter(workout => workout.sport === sport).reduce((sum, workout) => sum + workout.durationMinutes, 0);
@@ -83,9 +78,11 @@ export function generateFlexiblePlan(context: PlanningContext, options: { preser
       segment.target.lower = Math.min(max, Math.round(segment.target.lower * factor * 100) / 100);
       segment.target.upper = Math.min(max, Math.round(segment.target.upper * factor * 100) / 100);
     }
-    const hard = workout.blocks.some(block => block.segments.some(segment => segment.target.metric === "RPE" ? segment.target.upper > 6 : segment.target.metric === "FTP_PERCENT" ? segment.target.upper > 90 : segment.target.metric === "MAX_HR_PERCENT" ? segment.target.upper > 85 : segment.target.lower < 105));
-    const moderate = workout.blocks.some(block => block.segments.some(segment => segment.target.metric === "RPE" ? segment.target.upper > 4 : segment.target.metric === "FTP_PERCENT" ? segment.target.upper > 75 : segment.target.metric === "MAX_HR_PERCENT" ? segment.target.upper > 75 : segment.target.lower < 115));
-    workout.effort = hard ? "HARD" : moderate ? "MODERATE" : "EASY";
+    workout.effort = workoutEffort(workout);
+    if (workout.effort !== "EASY") {
+      workout.title = `${workout.effort === "HARD" ? "Hard" : "Moderate"} ${workout.sport === "BIKE" ? "ride" : workout.sport.toLowerCase()} (adjusted)`;
+      for (const block of workout.blocks) for (const segment of block.segments) if (segment.label === "Main") segment.instructions = "Follow the adjusted target. Reduce effort or stop if you cannot complete it comfortably.";
+    }
     Object.assign(workout, resolveWorkoutTargets(workout, context.fitness, context.generatedAt));
   }
   const hardDates: string[] = [];
@@ -98,7 +95,7 @@ export function generateFlexiblePlan(context: PlanningContext, options: { preser
     } else hardDates.push(workout.date);
   }
   const assumptions = ["Uses your local week, configured availability, pool access, and restrictions. Unconfigured days are unavailable.",
-    "Easy sessions only; at least one rest day. Five-minute allocation prioritizes sports with fewer available days. Race-specific intensity selection is deferred."];
+    "Template sessions with explicit intensity adjustments; at least one rest day, at most two hard sessions, and no consecutive hard days. Allocation prioritizes sports with fewer available days. Race-specific selection is deferred."];
   if (options.preserved?.length) assumptions.push("Past, completed, stopped, modified, and locked workouts were preserved. New settings apply only to replaceable workouts.");
   if (context.adjustments.length) assumptions.push("Temporary volume changes are prorated by their days in this week. Intensity reductions apply to matching workouts; increases may be limited by hard-session spacing. Goals remain unchanged.");
   if (restDate) assumptions.push(`${restDate} reserved for rest because every day was configured for training.`);
@@ -114,4 +111,27 @@ export function generateFlexiblePlan(context: PlanningContext, options: { preser
       return sessions.length ? sessions : [{ kind: "REST" as const, date: day.date, title: "Rest day" as const, durationMinutes: 0 }];
     }),
   });
+}
+
+export function planningBudgets(context: PlanningContext): FlexiblePlan["budgets"] {
+  const completed = context.recentTraining.weeks.filter(week => !week.isCurrentWeek);
+  const keys = { RUN: "run", BIKE: "bike", SWIM: "swim" } as const;
+  const budgets = Object.fromEntries(PlanSportSchema.options.map(sport => {
+    const averageMinutes = completed.reduce((sum, week) => sum + week[keys[sport]].durationMinutes, 0) / 3;
+    return [sport, { averageMinutes, activeWeeks: completed.filter(week => week[keys[sport]].durationSeconds > 0).length,
+      targetMinutes: context.goals[sport] ?? Math.floor(averageMinutes / 5) * 5, plannedMinutes: 0 }];
+  })) as FlexiblePlan["budgets"];
+  return budgets;
+}
+
+export function matchingAdjustment(context: PlanningContext, date: string, sport: PlanSport) {
+  return [...context.adjustments].reverse().find(item => (!item.sport || item.sport === sport) && item.startDate <= date && item.endDate >= date);
+}
+
+export function allocationTargets(context: PlanningContext, _preserved: StructuredWorkout[] = []): Record<PlanSport, number> {
+  const budgets = planningBudgets(context);
+  return Object.fromEntries(PlanSportSchema.options.map(sport => {
+    const adjusted = Math.floor(budgets[sport].targetMinutes * context.availability.days.reduce((sum, day) => sum + (matchingAdjustment(context, day.date, sport)?.volumePercent ?? 100), 0) / 700 / 5) * 5;
+    return [sport, adjusted];
+  })) as Record<PlanSport, number>;
 }

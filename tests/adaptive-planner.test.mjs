@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan, resolveWorkoutTargets, JOBS, QUEUES, planJobId, bullConnectionFromUrl } from "@pkg/shared";
+import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan, resolveWorkoutTargets, JOBS, QUEUES, planJobId, bullConnectionFromUrl, runPlanGeneration, deterministicPlanProvider } from "@pkg/shared";
 import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan, getPlanningSettings, updatePlanningSettings, updateWorkoutFeedback, createOrReusePlanRun, executePlanRun, createOrReuseSyncRun } from "@pkg/db";
 
 assert.match(process.env.OAUTH_TEST_DATABASE ?? "", /^planner_oauth_test_[a-f0-9]{16}$/);
@@ -175,6 +175,7 @@ test("generation requests reuse pending work, exclude sync, and consume a real t
     await configuredContext();
     const [one, two] = await Promise.all([createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" }), createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" })]);
     assert.equal(one.id, two.id);
+    await assert.rejects(createOrReusePlanRun(user.id, { scope: "REMAINING_WEEK" }), /different generation/);
     await assert.rejects(createOrReuseSyncRun(user.id), /generation/);
     testJob = await queue.add(JOBS.generatePlan, { jobRunId: one.id }, { jobId: planJobId(one.id), attempts: 3, backoff: { type: "exponential", delay: 2000 } });
     assert.deepEqual(testJob.data, { jobRunId: one.id });
@@ -218,4 +219,82 @@ test("generation retry count persists and exhausted failures leave the previous 
   }
   assert.equal((await executePlanRun(run.id)).status, "FAILED");
   assert.deepEqual((await prisma.weeklyPlan.findUnique({ where: { id: original.id } })).content, original.content);
+});
+
+test("simulated provider can create custom intervals; the server computes targets and totals", async () => {
+  const context = await configuredContext();
+  context.fitness.effective.cycling.value = 250;
+  const workout = customPlan().days[1];
+  workout.blocks[0].segments[0].resolved = { lower: 1, upper: 999, unit: "WATTS", baseline: 1, recordedAt: context.generatedAt };
+  const plan = runPlanGeneration(context, context.targetWeek.startDate, [], () => ({ version: 1, explanation: "Custom short efforts", workouts: [workout] }));
+  assert.equal(plan.totalMinutes, 12);
+  assert.equal(plan.budgets.BIKE.plannedMinutes, 12);
+  assert.equal(calendarWorkouts(plan)[0].blocks[0].segments[0].resolved.lower, 250);
+  assert.deepEqual(plan.goals, context.goals);
+});
+
+test("provider cannot redefine goals, overschedule, hide hard effort, or replace protected IDs", async () => {
+  const context = await configuredContext();
+  const proposal = () => ({ version: 1, explanation: "Fixture", workouts: [customPlan().days[1]] });
+  for (const mutate of [
+    p => { p.goals = { RUN: 10000 }; },
+    p => { p.workouts[0].date = "2026-09-07"; },
+    p => { p.workouts[0].sport = "SWIM"; p.workouts[0].blocks[0].segments[0].target.metric = "RPE"; p.workouts[0].blocks[0].segments[0].target.lower = 8; p.workouts[0].blocks[0].segments[0].target.upper = 9; },
+    p => { p.workouts.push({ ...structuredClone(p.workouts[0]), id: "other", date: "2026-09-09", effort: "EASY" }); },
+    p => { p.workouts[0].blocks[0].repeat = 60; p.workouts[0].durationMinutes = 240; context.goals.BIKE = 100; },
+  ]) { const response = proposal(); mutate(response); assert.throws(() => runPlanGeneration(context, context.targetWeek.startDate, [], () => response)); }
+  context.goals.BIKE = 500;
+  const protectedWorkout = customPlan().days[1];
+  assert.throws(() => runPlanGeneration(context, context.targetWeek.startDate, [protectedWorkout], () => proposal()), /protected/);
+  assert.throws(() => runPlanGeneration(context, context.targetWeek.startDate, [], input => {
+    input.context.goals.BIKE = 10000;
+    const response = proposal(); response.workouts[0].blocks[0].repeat = 100; response.workouts[0].durationMinutes = 400;
+    return response;
+  }));
+});
+
+test("invalid provider output rolls back and completed-week feedback reaches the next context", async () => {
+  await configuredContext();
+  const original = await generateAndSaveFlexiblePlan(user.id, now);
+  const workout = calendarWorkouts(original.content)[0];
+  await updateWorkoutFeedback(user.id, { planId: original.id, workoutId: workout.id, expectedUpdatedAt: original.updatedAt,
+    locked: false, completion: "COMPLETED", comment: "Too easy", rpe: 2 });
+  const context = await buildPlanningContext(user.id, { now: new Date("2026-09-14T12:00:00Z") });
+  assert.ok(context.recentFeedback.some(value => value.comment === "Too easy"));
+  await assert.rejects(generateAndSaveFlexiblePlan(user.id, now, "NEXT_WEEK", undefined, undefined, () => ({ version: 1, explanation: "Invalid", workouts: [{ invalid: true }] })));
+  assert.deepEqual((await prisma.weeklyPlan.findUnique({ where: { id: original.id } })).content, original.content);
+});
+
+test("feedback HTTP route rejects unauthenticated, cross-origin, and malformed writes", async () => {
+  const { NextRequest } = await import("next/server.js");
+  const { PATCH } = await import("../apps/web/src/app/api/workout-feedback/route.ts");
+  const { hashToken, newOpaqueToken } = await import("../apps/web/src/lib/strava-auth.ts");
+  const token = newOpaqueToken();
+  await prisma.session.create({ data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 600000) } });
+  const request = (body, session = token, origin = "http://localhost:3000") => new NextRequest("http://localhost:3000/api/workout-feedback", {
+    method: "PATCH", headers: { origin, cookie: `planner_session=${session}` }, body: JSON.stringify(body),
+  });
+  assert.equal((await PATCH(request({}, "invalid"))).status, 401);
+  assert.equal((await PATCH(request({}, token, "https://unrelated.example"))).status, 403);
+  assert.equal((await PATCH(request({ rpe: 99, userId: 1 }))).status, 400);
+  assert.equal((await prisma.weeklyPlan.count({ where: { userId: user.id } })), 0);
+});
+
+test("expired generation leases recover without resetting the attempt counter", async () => {
+  await configuredContext();
+  const run = await createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" });
+  await prisma.jobRun.update({ where: { id: run.id }, data: { status: "RUNNING", attemptsStarted: 1, leaseExpiresAt: new Date(Date.now() - 1000) } });
+  assert.equal((await executePlanRun(run.id)).status, "SUCCESS");
+  assert.equal((await prisma.jobRun.findUnique({ where: { id: run.id } })).attemptsStarted, 2);
+});
+
+test("second-based custom workouts retain fractional minutes and reject inconsistent totals", async () => {
+  const context = await configuredContext();
+  const workout = customPlan().days[1];
+  workout.durationMinutes = 1.5;
+  workout.blocks = [{ repeat: 1, segments: [{ label: "Short effort", seconds: 90, instructions: "Custom short workout", target: { metric: "RPE", lower: 3, upper: 4 } }] }];
+  const plan = runPlanGeneration(context, context.targetWeek.startDate, [], () => ({ version: 1, explanation: "Short fixture", workouts: [workout] }));
+  assert.equal(plan.totalMinutes, 1.5);
+  assert.equal(plan.budgets.BIKE.plannedMinutes, 1.5);
+  assert.equal(FlexiblePlanSchema.safeParse({ ...plan, totalMinutes: 2 }).success, false);
 });

@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const pages = [
-  { href: "/settings/adjustments", title: "Adjustments", mark: "?" },
   { href: "/", title: "Calendar", mark: "▦" },
   { href: "/settings/goals", title: "Goals", mark: "◎" },
   { href: "/settings/availability", title: "Availability", mark: "◷" },
+  { href: "/settings/adjustments", title: "Adjustments", mark: "±" },
   { href: "/settings/profile", title: "Profile", mark: "○" },
 ];
 

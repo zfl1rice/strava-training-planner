@@ -1,5 +1,12 @@
 # Code review and source guide
 
+## Pre-AI generation checkpoint
+
+The [current generation review map](pre-ai-checkpoint.md#review-map) covers the seven
+subsequent implementation steps. Start with `plan-generation.ts`, `adaptive-planner.ts`,
+and `plan-jobs.ts`: they define validation, allocation policy, and async persistence.
+The earlier maps below describe their respective historical checkpoints.
+
 ## September 6 PlanningContext foundation
 
 Start with the [checkpoint and new-file review map](planning-context.md#review-map)

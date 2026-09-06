@@ -2,6 +2,11 @@
 
 **Status:** Draft for review · **Date:** September 5, 2026
 
+**Latest implementation addendum:** The [pre-AI generation checkpoint](pre-ai-checkpoint.md)
+supersedes the fixed-schedule and synchronous-generation descriptions below. New plans
+use v2 structured workouts, availability, adjustments, and the background worker.
+The provider contract is implemented and tested with simulations; no AI calls exist.
+
 **September 6 addendum:** The [PlanningContext checkpoint](planning-context.md)
 documents the subsequently implemented profile/race/evidence foundation, local-date
 context, and protected workout metadata. Its implementation notes supersede this

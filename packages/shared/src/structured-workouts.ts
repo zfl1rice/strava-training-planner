@@ -43,6 +43,11 @@ export type StructuredWorkout = z.infer<typeof StructuredWorkoutSchema>;
 
 export const FlexiblePlanSchema = WeeklyPlanSchema.extend({
   version: z.literal(2), timeZone: TimeZoneSchema,
+  totalMinutes: z.number().finite().nonnegative(),
+  budgets: z.object({ RUN: WeeklyPlanSchema.shape.budgets.shape.RUN.extend({ plannedMinutes: z.number().finite().nonnegative() }),
+    BIKE: WeeklyPlanSchema.shape.budgets.shape.BIKE.extend({ plannedMinutes: z.number().finite().nonnegative() }),
+    SWIM: WeeklyPlanSchema.shape.budgets.shape.SWIM.extend({ plannedMinutes: z.number().finite().nonnegative() }),
+  }).strict(),
   days: z.array(z.union([StructuredWorkoutSchema, z.object({
     kind: z.literal("REST"), date: LocalDateSchema, title: z.literal("Rest day"), durationMinutes: z.literal(0),
   }).strict()])).max(168),
