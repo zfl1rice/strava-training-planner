@@ -6,11 +6,11 @@ import { SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
 import SettingsEditor from "../settings-editor";
 
 export const dynamic = "force-dynamic";
-const titles = { profile: "Athlete profile", goals: "Race goals", availability: "Training availability" };
+const titles = { adjustments: "Training adjustments", profile: "Athlete profile", goals: "Race goals", availability: "Training availability" };
 
 export default async function SettingsPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
-  if (section !== "profile" && section !== "goals" && section !== "availability") notFound();
+  if (section !== "profile" && section !== "goals" && section !== "availability" && section !== "adjustments") notFound();
   let settings = null;
   let loadError = false;
   try {

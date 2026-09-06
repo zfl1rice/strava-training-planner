@@ -1,12 +1,13 @@
 "use client";
 
+import WorkoutFeedbackForm from "./workout-feedback-form";
 import WorkoutChart from "./workout-chart";
 import { useEffect, useRef, useState } from "react";
 import { CalendarMonthSchema, calendarMonthRange, type TrainingCalendarData, calendarWorkouts, localDateAt } from "@pkg/shared";
 
 type CalendarEntry =
   | { kind: "completed"; date: string; activity: TrainingCalendarData["activities"][number] }
-  | { kind: "planned"; date: string; workout: ReturnType<typeof calendarWorkouts>[number] };
+  | { kind: "planned"; date: string; plan: TrainingCalendarData["plans"][number]; workout: ReturnType<typeof calendarWorkouts>[number] };
 
 const DAY_MS = 86400000;
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -23,7 +24,7 @@ const formatTotal = (minutes: number) => {
   return rounded >= 60 ? `${Math.floor(rounded / 60)}h ${rounded % 60}m` : `${rounded}m`;
 };
 
-function WorkoutDetails({ entry, onClose }: { entry: CalendarEntry | null; onClose: () => void }) {
+function WorkoutDetails({ entry, onClose, onSaved }: { entry: CalendarEntry | null; onClose: () => void; onSaved: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (entry && !dialog.current?.open) dialog.current?.showModal();
@@ -55,7 +56,8 @@ function WorkoutDetails({ entry, onClose }: { entry: CalendarEntry | null; onClo
               <h3 className="font-medium">{step.label} <span className="font-normal text-slate-500">· {step.minutes} min</span></h3>
               <p className="mt-1 text-sm leading-6 text-slate-600">{step.instructions}</p>
             </li>)}
-          </ol></div>
+          </ol><WorkoutFeedbackForm key={`${entry.plan.id}-${entry.workout.id}-${entry.plan.updatedAt}`} planId={entry.plan.id} updatedAt={entry.plan.updatedAt} workoutId={entry.workout.id}
+            state={entry.plan.workoutStates?.find(state => (state.workoutId ?? `${state.date}:${state.templateId}`) === entry.workout.id)} onSaved={onSaved} /></div>
         ) : <div className="space-y-4 text-sm text-slate-600">
           <p>{sportNames[entry.activity.type] || entry.activity.type} · Recorded moving time</p>
           <p>Distance: {entry.activity.distanceMeters === null ? "Unavailable" : entry.activity.type === "SWIM"
@@ -104,7 +106,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
     Array.from({ length: 7 }, (_, day) => new Date(start.getTime() + (index * 7 + day) * DAY_MS).toISOString().slice(0, 10)));
   const entries: CalendarEntry[] = [
     ...(data?.activities.map(activity => ({ kind: "completed" as const, date: localDateAt(new Date(activity.startedAt), data?.timeZone ?? "UTC"), activity })) ?? []),
-    ...(data?.plans.flatMap(plan => calendarWorkouts(plan.content).map(workout => ({ kind: "planned" as const, date: workout.date, workout }))) ?? []),
+    ...(data?.plans.flatMap(plan => calendarWorkouts(plan.content).map(workout => ({ kind: "planned" as const, date: workout.date, workout, plan }))) ?? []),
   ];
   const restDates = new Set(data?.plans.flatMap(plan => plan.content.days.filter(day => day.kind === "REST").map(day => day.date)));
   const today = localDateAt(new Date(), data?.timeZone ?? "UTC");
@@ -182,7 +184,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
         </table>
       </div>
       <p className="border-t border-slate-200 px-5 py-3 text-xs text-slate-400">Completed activities and planned workouts are separate entries. On a small screen, scroll sideways to see the full week.</p>
-      <WorkoutDetails entry={selected} onClose={() => setSelected(null)} />
+      <WorkoutDetails entry={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); setRetry(value => value + 1); }} />
     </section>
   );
 }

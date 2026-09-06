@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PlanningSettingsMutationSchema, type PlanningSettings, type PlanningSettingsMutation } from "@pkg/shared";
+import AdjustmentsForm from "./adjustments-form";
 import ProfileForm from "./profile-form";
 import AvailabilityForm from "./availability-form";
 import RaceGoalsForm from "./race-goals-form";
@@ -10,7 +11,7 @@ import RaceGoalsForm from "./race-goals-form";
 export type SaveSettings = (change: PlanningSettingsMutation) => Promise<boolean>;
 
 export default function SettingsEditor({ section, initialSettings }: {
-  section: "profile" | "availability" | "goals"; initialSettings: PlanningSettings;
+  section: "profile" | "availability" | "goals" | "adjustments"; initialSettings: PlanningSettings;
 }) {
   const [settings, setSettings] = useState(initialSettings);
   const [saving, setSaving] = useState(false);
@@ -51,6 +52,7 @@ export default function SettingsEditor({ section, initialSettings }: {
     {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
       <p>{error}</p>{conflict && <button type="button" className="mt-2 underline" onClick={() => window.location.reload()}>Discard unsaved edits and reload</button>}
     </div>}
+    {section === "adjustments" && <AdjustmentsForm key={settings.profileUpdatedAt ?? "new"} settings={settings} saving={saving} save={save} />}
     {section === "profile" && <ProfileForm key={settings.profileUpdatedAt ?? "new"} settings={settings} saving={saving} save={save} />}
     {section === "availability" && <AvailabilityForm key={settings.profileUpdatedAt ?? "new"} settings={settings} saving={saving} save={save} />}
     {section === "goals" && <>

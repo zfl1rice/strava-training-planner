@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan, resolveWorkoutTargets } from "@pkg/shared";
-import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan } from "@pkg/db";
+import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan, getPlanningSettings, updatePlanningSettings, updateWorkoutFeedback } from "@pkg/db";
 
 assert.match(process.env.OAUTH_TEST_DATABASE ?? "", /^planner_oauth_test_[a-f0-9]{16}$/);
 assert.equal(new URL(process.env.DATABASE_URL).pathname, `/${process.env.OAUTH_TEST_DATABASE}`);
@@ -105,4 +105,32 @@ test("targets resolve from baselines, declare missing data, and keep old snapsho
   workout.sport = "RUN";
   workout.blocks[0].segments[0].target = { metric: "THRESHOLD_PACE_PERCENT", lower: 110, upper: 120 };
   assert.equal(resolveWorkoutTargets(workout, context.fitness, context.generatedAt).blocks[0].segments[0].resolved.lower, 330);
+});
+
+test("feedback is owned, stale-safe, and visible in context without changing workout targets", async () => {
+  await configuredContext();
+  const saved = await generateAndSaveFlexiblePlan(user.id, now);
+  const workout = calendarWorkouts(saved.content)[0];
+  const change = { planId: saved.id, expectedUpdatedAt: saved.updatedAt, workoutId: workout.id, comment: "Too hard mentally", rpe: 9, completion: "STOPPED", locked: true };
+  const other = await prisma.user.create({ data: {} });
+  await assert.rejects(updateWorkoutFeedback(other.id, change), /not found/);
+  await updateWorkoutFeedback(user.id, change);
+  await assert.rejects(updateWorkoutFeedback(user.id, change), /changed/);
+  const context = await buildPlanningContext(user.id, { now });
+  assert.equal(context.existingPlans[0].workoutStates[0].feedback.rpe, 9);
+  assert.deepEqual(context.existingPlans[0].content, saved.content);
+});
+
+test("dated adjustments reduce planned volume without rewriting goals and restrictions block a sport", async () => {
+  await configuredContext();
+  const settings = await getPlanningSettings(user.id);
+  await updatePlanningSettings(user.id, { section: "ADJUSTMENTS", expectedUpdatedAt: settings.profileUpdatedAt,
+    adjustments: [{ id: "recovery", sport: "BIKE", startDate: "2026-09-07", endDate: "2026-09-13", volumePercent: 50, intensityPercent: 50, comment: "Too much volume" }],
+    restrictions: [{ id: "stop-run", sport: "RUN", startDate: "2026-09-07", endDate: "2026-09-13", kind: "NO_TRAINING", maxSessionMinutes: null, description: "User restriction" }],
+  });
+  const plan = (await generateAndSaveFlexiblePlan(user.id, now)).content;
+  assert.equal(plan.goals.BIKE, 500);
+  assert.equal(plan.budgets.BIKE.plannedMinutes, 250);
+  assert.equal(plan.budgets.RUN.plannedMinutes, 0);
+  assert.ok(calendarWorkouts(plan).filter(w => w.sport === "BIKE").every(w => w.blocks[0].segments[1].target.upper === 2));
 });

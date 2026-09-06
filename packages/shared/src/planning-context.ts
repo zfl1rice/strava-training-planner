@@ -3,7 +3,7 @@ import { z } from "zod";
 import { WeeklyGoalsSchema } from "./planner.js";
 import {
   AvailabilitySchema, CapabilitySchema, DayAvailabilitySchema, FitnessProfileSchema,
-  PerformanceEvidenceSchema, RaceGoalSchema, RestrictionSchema, WorkoutStatesSchema,
+  PerformanceEvidenceSchema, RaceGoalSchema, RestrictionSchema, WorkoutStatesSchema, TrainingAdjustmentSchema,
 } from "./athlete-profile.js";
 import { addCalendarDays, LocalDateSchema, TimeZoneSchema, calendarWeekday } from "./planning-dates.js";
 
@@ -70,6 +70,7 @@ export const PlanningContextSchema = z.object({
     }).strict()).length(7),
   }).strict(),
   restrictions: z.array(RestrictionSchema),
+  adjustments: z.array(TrainingAdjustmentSchema).default([]),
   existingPlans: z.array(ExistingContextPlanSchema),
   dataQuality: z.object({
     lastSuccessfulSyncAt: Timestamp.nullable(), syncInProgress: z.boolean(),

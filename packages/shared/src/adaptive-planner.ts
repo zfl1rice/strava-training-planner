@@ -34,6 +34,8 @@ export function generateFlexiblePlan(context: PlanningContext): FlexiblePlan {
     return [sport, { averageMinutes, activeWeeks: completed.filter(week => week[keys[sport]].durationSeconds > 0).length,
       targetMinutes: context.goals[sport] ?? Math.floor(averageMinutes / 5) * 5, plannedMinutes: 0 }];
   })) as FlexiblePlan["budgets"];
+  const adjustmentFor = (date: string, sport: PlanSport) => [...context.adjustments].reverse().find(item => (!item.sport || item.sport === sport) && item.startDate <= date && item.endDate >= date);
+  const desired = Object.fromEntries(PlanSportSchema.options.map(sport => [sport, Math.floor(budgets[sport].targetMinutes * context.availability.days.reduce((sum, day) => sum + (adjustmentFor(day.date, sport)?.volumePercent ?? 100), 0) / 700 / 5) * 5])) as Record<PlanSport, number>;
   const workouts: StructuredWorkout[] = [];
   // Unconfigured days are unavailable. If every day permits training, reserve
   // the least available day for rest; otherwise an unavailable day supplies rest.
@@ -43,7 +45,7 @@ export function generateFlexiblePlan(context: PlanningContext): FlexiblePlan {
     context.availability.days.filter(day => sessionLimit(context, day.date, a) >= 5).length -
     context.availability.days.filter(day => sessionLimit(context, day.date, b) >= 5).length);
   for (const sport of sports) {
-    while (budgets[sport].plannedMinutes + 5 <= budgets[sport].targetMinutes) {
+    while (budgets[sport].plannedMinutes + 5 <= desired[sport]) {
       const candidates = context.availability.days.filter(day => {
         if (day.date === restDate || !day.settings) return false;
         const sessions = workouts.filter(workout => workout.date === day.date);
@@ -70,10 +72,29 @@ export function generateFlexiblePlan(context: PlanningContext): FlexiblePlan {
       if (workout.sport === "RUN" && context.fitness.definitions.running.thresholdPace?.value) segment.target = { metric: "THRESHOLD_PACE_PERCENT", lower: main ? 115 : 125, upper: main ? 130 : 140 };
       if (workout.sport === "SWIM" && context.fitness.effective.swimming.value) segment.target = { metric: "THRESHOLD_PACE_PERCENT", lower: main ? 110 : 120, upper: main ? 120 : 130 };
     }
+    const intensity = adjustmentFor(workout.date, workout.sport)?.intensityPercent ?? 100;
+    for (const block of workout.blocks) for (const segment of block.segments) {
+      const factor = segment.target.metric === "THRESHOLD_PACE_PERCENT" ? 100 / intensity : intensity / 100;
+      const max = segment.target.metric === "RPE" ? 10 : segment.target.metric === "MAX_HR_PERCENT" ? 100 : 300;
+      segment.target.lower = Math.min(max, Math.round(segment.target.lower * factor * 100) / 100);
+      segment.target.upper = Math.min(max, Math.round(segment.target.upper * factor * 100) / 100);
+    }
+    const hard = workout.blocks.some(block => block.segments.some(segment => segment.target.metric === "RPE" ? segment.target.upper > 6 : segment.target.metric === "FTP_PERCENT" ? segment.target.upper > 90 : segment.target.metric === "MAX_HR_PERCENT" ? segment.target.upper > 85 : segment.target.lower < 105));
+    const moderate = workout.blocks.some(block => block.segments.some(segment => segment.target.metric === "RPE" ? segment.target.upper > 4 : segment.target.metric === "FTP_PERCENT" ? segment.target.upper > 75 : segment.target.metric === "MAX_HR_PERCENT" ? segment.target.upper > 75 : segment.target.lower < 115));
+    workout.effort = hard ? "HARD" : moderate ? "MODERATE" : "EASY";
     Object.assign(workout, resolveWorkoutTargets(workout, context.fitness, context.generatedAt));
+  }
+  const hardDates: string[] = [];
+  for (const workout of [...workouts].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (workout.effort !== "HARD") continue;
+    if (hardDates.length >= 2 || hardDates.some(date => Math.abs(Date.parse(date) - Date.parse(workout.date)) <= 86400000)) {
+      Object.assign(workout, resolveWorkoutTargets(easyWorkout(workout.id, workout.date, workout.sport, workout.durationMinutes), context.fitness, context.generatedAt));
+      workout.explanation += " Requested intensity increase was limited to preserve spacing between hard sessions.";
+    } else hardDates.push(workout.date);
   }
   const assumptions = ["Uses your local week, configured availability, pool access, and restrictions. Unconfigured days are unavailable.",
     "Easy sessions only; at least one rest day. Five-minute allocation prioritizes sports with fewer available days. Race-specific intensity selection is deferred."];
+  if (context.adjustments.length) assumptions.push("Temporary volume changes are prorated by their days in this week. Intensity reductions apply to matching workouts; increases may be limited by hard-session spacing. Goals remain unchanged.");
   if (restDate) assumptions.push(`${restDate} reserved for rest because every day was configured for training.`);
   for (const sport of sports) if (budgets[sport].plannedMinutes < budgets[sport].targetMinutes) assumptions.push(`${sport}: ${budgets[sport].targetMinutes - budgets[sport].plannedMinutes} target minutes unscheduled because of availability, session limits, restrictions, or the reserved rest day.`);
   if (!workouts.length) assumptions.push("No workouts fit. Configure availability and weekly goals, or sync enough history for automatic targets.");

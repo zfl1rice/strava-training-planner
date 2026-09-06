@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AvailabilitySchema, RaceGoalSchema } from "./athlete-profile.js";
+import { AvailabilitySchema, RaceGoalSchema, RestrictionSchema, TrainingAdjustmentSchema } from "./athlete-profile.js";
 import { PlanningTimestampSchema, TimeZoneSchema } from "./planning-dates.js";
 
 export const ManualBaselinesSchema = z.object({
@@ -12,6 +12,9 @@ export const ManualBaselinesSchema = z.object({
 export const EditableRaceSchema = RaceGoalSchema.innerType().omit({ demandProfile: true });
 
 export const PlanningSettingsMutationSchema = z.discriminatedUnion("section", [
+  z.object({ section: z.literal("ADJUSTMENTS"), expectedUpdatedAt: PlanningTimestampSchema.nullable(),
+    restrictions: z.array(RestrictionSchema).max(100), adjustments: z.array(TrainingAdjustmentSchema).max(100),
+  }).strict(),
   z.object({ section: z.literal("PROFILE"), expectedUpdatedAt: PlanningTimestampSchema.nullable(),
     timeZone: TimeZoneSchema, baselines: ManualBaselinesSchema }).strict(),
   z.object({ section: z.literal("AVAILABILITY"), expectedUpdatedAt: PlanningTimestampSchema.nullable(),
@@ -31,5 +34,13 @@ export type PlanningSettings = {
   baselines: ManualBaselines;
   swimUnitLocked: boolean;
   availability: z.infer<typeof AvailabilitySchema>;
+  restrictions: z.infer<typeof RestrictionSchema>[];
+  adjustments: z.infer<typeof TrainingAdjustmentSchema>[];
   races: { id: number; updatedAt: string; race: EditableRace }[];
 };
+
+export const WorkoutFeedbackMutationSchema = z.object({
+  planId: z.number().int().positive(), workoutId: z.string().min(1).max(150), expectedUpdatedAt: PlanningTimestampSchema,
+  completion: z.enum(["PLANNED", "COMPLETED", "MODIFIED", "STOPPED"]), locked: z.boolean(),
+  comment: z.string().max(4000), rpe: z.number().int().min(1).max(10).nullable(),
+}).strict();

@@ -173,6 +173,7 @@ export async function buildPlanningContext(
         ...week, weekStart: week.weekStart.slice(0, 10), weekEnd: week.weekEnd.slice(0, 10),
       })) },
       availability: { recurring: profile.availability.recurring, days },
+      adjustments: (profile.adjustments ?? []).filter(value => value.startDate < endDate && value.endDate >= startDate),
       restrictions: profile.restrictions.filter(value => value.startDate < endDate && (!value.endDate || value.endDate >= startDate)),
       existingPlans: plans.map(plan => ({ id: plan.id, updatedAt: plan.updatedAt.toISOString(), content: plan.content,
         workoutStates: plan.workoutStates })),

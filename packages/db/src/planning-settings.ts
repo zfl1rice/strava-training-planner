@@ -31,7 +31,7 @@ export async function getPlanningSettings(userId: number, database: Prisma.Trans
       swimPaceUnit: profile.fitness.swimming.paceUnit,
     },
     swimUnitLocked: profile.fitness.swimming.baseline.estimate !== null || profile.fitness.swimming.zones.mode === "CUSTOM",
-    availability: profile.availability,
+    availability: profile.availability, restrictions: profile.restrictions, adjustments: profile.adjustments ?? [],
     races: user.raceGoals.map(row => {
       const { demandProfile: _demandProfile, ...race } = storedRace(row.content, row.date, row.importance);
       return { id: row.id, updatedAt: row.updatedAt.toISOString(), race };
@@ -53,7 +53,7 @@ export async function updatePlanningSettings(userId: number, input: unknown): Pr
     // Serializes editor writes, including creation of the first profile row.
     const locked = await database.$queryRaw<{ id: number }[]>`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
     if (!locked.length) throw new PlanningSettingsNotFoundError("Athlete not found.");
-    if (change.section === "PROFILE" || change.section === "AVAILABILITY") {
+    if (change.section === "PROFILE" || change.section === "AVAILABILITY" || change.section === "ADJUSTMENTS") {
       const saved = await database.athleteProfile.findUnique({ where: { userId } });
       if ((saved?.updatedAt.toISOString() ?? null) !== change.expectedUpdatedAt) {
         throw new PlanningSettingsConflictError("Your profile or availability changed in another tab. Reload the page before saving again.");
@@ -61,6 +61,7 @@ export async function updatePlanningSettings(userId: number, input: unknown): Pr
       const profile = AthleteProfileSchema.parse(saved?.content ?? emptyAthleteProfile());
       const updatedAt = new Date(Math.max(Date.now(), (saved?.updatedAt.getTime() ?? 0) + 1));
       if (change.section === "AVAILABILITY") profile.availability = change.availability;
+      else if (change.section === "ADJUSTMENTS") { profile.restrictions = change.restrictions; profile.adjustments = change.adjustments; }
       else {
         const { baselines } = change;
         const swim = profile.fitness.swimming;

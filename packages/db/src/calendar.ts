@@ -1,4 +1,4 @@
-import { calendarMonthRange, localDateAt, validateStoredPlan, type TrainingCalendarData } from "@pkg/shared";
+import { calendarMonthRange, localDateAt, WorkoutStatesSchema, validateStoredPlan, type TrainingCalendarData } from "@pkg/shared";
 import { prisma } from "./client.js";
 
 export async function getTrainingCalendar(userId: number, month: string): Promise<TrainingCalendarData> {
@@ -26,6 +26,7 @@ export async function getTrainingCalendar(userId: number, month: string): Promis
       stravaActivityId: activity.stravaActivityId?.toString() ?? null,
     })),
     plans: plans.map(plan => ({
+      ...(WorkoutStatesSchema.parse(plan.workoutStates).length ? { workoutStates: WorkoutStatesSchema.parse(plan.workoutStates) } : {}),
       id: plan.id, updatedAt: plan.updatedAt.toISOString(), content: validateStoredPlan(plan.content),
     })),
   };

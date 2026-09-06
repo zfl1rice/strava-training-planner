@@ -80,7 +80,7 @@ export const WeeklyPlanSchema = z.object({
 });
 
 export type WeeklyPlan = z.infer<typeof WeeklyPlanSchema>;
-export type SavedWeeklyPlan = { id: number; updatedAt: string; content: StoredPlan };
+export type SavedWeeklyPlan = { id: number; updatedAt: string; content: StoredPlan; workoutStates?: import("./athlete-profile.js").AthleteWorkoutStates };
 export type PlannerState = { goals: WeeklyGoals; nextWeekStart: string; currentPlan: SavedWeeklyPlan | null; nextPlan: SavedWeeklyPlan | null };
 
 export function nextPlanWeek(now: Date): Date {

@@ -6,3 +6,5 @@ export * from "./planner.js";
 export * from "./calendar.js";
 export * from "./planning-context.js";
 export * from "./planning-settings.js";
+
+export * from "./workout-feedback.js";

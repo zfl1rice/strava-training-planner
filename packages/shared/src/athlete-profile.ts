@@ -122,12 +122,20 @@ export const RestrictionSchema = z.object({
 }).strict().refine(value => (!value.endDate || value.endDate >= value.startDate) &&
   ((value.kind === "MAX_SESSION_MINUTES") === (value.maxSessionMinutes !== null)), "Invalid restriction bounds");
 
+export const TrainingAdjustmentSchema = z.object({
+  id: z.string().min(1).max(100), sport: PlanSportSchema.nullable(),
+  startDate: LocalDateSchema, endDate: LocalDateSchema,
+  volumePercent: z.number().int().min(0).max(200), intensityPercent: z.number().int().min(25).max(175),
+  comment: z.string().max(2000),
+}).strict().refine(value => value.endDate >= value.startDate, "Adjustment end must follow its start");
+
 export const AthleteProfileSchema = z.object({
   version: z.literal(1),
   fitness: FitnessProfileSchema,
   capabilities: z.array(CapabilitySchema).max(30),
   availability: AvailabilitySchema,
   restrictions: z.array(RestrictionSchema).max(100),
+  adjustments: z.array(TrainingAdjustmentSchema).max(100).optional(),
 }).strict().superRefine((profile, context) => {
   const keys = profile.capabilities.map(entry => `${entry.sport}:${entry.key}`);
   if (new Set(keys).size !== keys.length || new Set(profile.restrictions.map(entry => entry.id)).size !== profile.restrictions.length) {
@@ -196,3 +204,5 @@ export const WorkoutStatesSchema = z.array(z.object({
   completion: z.enum(["PLANNED", "COMPLETED", "MODIFIED", "STOPPED"]),
   feedback: z.object({ comment: z.string().max(4000), rpe: z.number().int().min(1).max(10).nullable() }).strict().nullable(),
 }).strict()).max(168).refine(states => new Set(states.map(value => value.workoutId ?? value.date)).size === states.length, "Duplicate workout identity");
+
+export type AthleteWorkoutStates = z.infer<typeof WorkoutStatesSchema>;

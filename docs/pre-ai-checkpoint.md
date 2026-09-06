@@ -9,7 +9,8 @@ are introduced by this sequence.
   restrictions, rest days, and explicit shortfalls replace the v1 template caps.
 - [x] Resolve workout targets: saved numeric target snapshots, running threshold
   pace input, relative intensity charts, and explicit missing baselines.
-- [ ] Add feedback and adjustment controls
+- [x] Add feedback and adjustment controls: completion, locks, RPE/comments,
+  dated volume/intensity settings and explicit restrictions.
 - [ ] Implement regeneration boundaries
 - [ ] Prepare background generation
 - [ ] Finalize the AI input/output contract
