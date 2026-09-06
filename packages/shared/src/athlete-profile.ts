@@ -100,8 +100,12 @@ export const DayAvailabilitySchema = z.object({
 }).strict().refine(day => day.maxSessions !== 0 || day.availableMinutes === 0,
   "A non-training day must have zero available minutes");
 
+export function defaultDayAvailability(): z.infer<typeof DayAvailabilitySchema> {
+  return { availableMinutes: 1440, maxSessions: 3, allowedSports: ["RUN", "BIKE", "SWIM"], poolAccess: true };
+}
+
 export const AvailabilitySchema = z.object({
-  // Monday = 0. Missing days mean unconfigured, not unlimited or a rest day.
+  // Monday = 0. Missing days use defaultDayAvailability; save zero sessions for rest.
   recurring: z.array(z.object({ weekday: z.number().int().min(0).max(6), settings: DayAvailabilitySchema }).strict()).max(7),
   overrides: z.array(z.object({ date: LocalDateSchema, settings: DayAvailabilitySchema, note: Text.nullable() }).strict()).max(366),
 }).strict().superRefine((availability, context) => {

@@ -30,11 +30,11 @@ export function generateFlexiblePlan(context: PlanningContext, options: { preser
   const completed = context.recentTraining.weeks.filter(week => !week.isCurrentWeek);
   const budgets = planningBudgets(context);
   const adjustmentFor = (date: string, sport: PlanSport) => matchingAdjustment(context, date, sport);
-  const desired = allocationTargets(context, options.preserved ?? []);
+  const desired = allocationTargets(context);
   const workouts: StructuredWorkout[] = structuredClone(options.preserved ?? []);
   const protectedIds = new Set(workouts.map(workout => workout.id));
   for (const sport of PlanSportSchema.options) budgets[sport].plannedMinutes = workouts.filter(workout => workout.sport === sport).reduce((sum, workout) => sum + workout.durationMinutes, 0);
-  // Unconfigured days are unavailable. If every day permits training, reserve
+  // Fallback preference, not proposal validity: if every day permits training, reserve
   // the least available day for rest; otherwise an unavailable day supplies rest.
   const hasRest = context.availability.days.some(day => !day.settings || !day.settings.maxSessions || day.settings.availableMinutes < 5);
   const restDate = hasRest ? null : [...context.availability.days].sort((a, b) => a.settings!.availableMinutes - b.settings!.availableMinutes)[0]!.date;
@@ -94,13 +94,13 @@ export function generateFlexiblePlan(context: PlanningContext, options: { preser
       workout.explanation += " Requested intensity increase was limited to preserve spacing between hard sessions.";
     } else hardDates.push(workout.date);
   }
-  const assumptions = ["Uses your local week, configured availability, pool access, and restrictions. Unconfigured days are unavailable.",
+  const assumptions = ["Uses your local week, availability, pool access, and restrictions. Days without saved settings are available by default.",
     "Template sessions with explicit intensity adjustments; at least one rest day, at most two hard sessions, and no consecutive hard days. Allocation prioritizes sports with fewer available days. Race-specific selection is deferred."];
   if (options.preserved?.length) assumptions.push("Past, completed, stopped, modified, and locked workouts were preserved. New settings apply only to replaceable workouts.");
   if (context.adjustments.length) assumptions.push("Temporary volume changes are prorated by their days in this week. Intensity reductions apply to matching workouts; increases may be limited by hard-session spacing. Goals remain unchanged.");
-  if (restDate) assumptions.push(`${restDate} reserved for rest because every day was configured for training.`);
+  if (restDate) assumptions.push(`${restDate} reserved for rest because every day was available for training.`);
   for (const sport of sports) if (budgets[sport].plannedMinutes < budgets[sport].targetMinutes) assumptions.push(`${sport}: ${budgets[sport].targetMinutes - budgets[sport].plannedMinutes} target minutes unscheduled because of availability, session limits, restrictions, or the reserved rest day.`);
-  if (!workouts.length) assumptions.push("No workouts fit. Configure availability and weekly goals, or sync enough history for automatic targets.");
+  if (!workouts.length) assumptions.push("No workouts fit. Check weekly goals, availability limits, and restrictions, or sync enough history for automatic targets.");
   return FlexiblePlanSchema.parse({ version: 2, timeZone: context.athlete.timeZone,
     weekStart: `${context.targetWeek.startDate}T00:00:00.000Z`, weekEnd: `${context.targetWeek.endDate}T00:00:00.000Z`,
     sourceGeneratedAt: context.generatedAt, sourceWeekStarts: completed.map(week => `${week.weekStart}T00:00:00.000Z`),
@@ -128,7 +128,7 @@ export function matchingAdjustment(context: PlanningContext, date: string, sport
   return [...context.adjustments].reverse().find(item => (!item.sport || item.sport === sport) && item.startDate <= date && item.endDate >= date);
 }
 
-export function allocationTargets(context: PlanningContext, _preserved: StructuredWorkout[] = []): Record<PlanSport, number> {
+export function allocationTargets(context: PlanningContext): Record<PlanSport, number> {
   const budgets = planningBudgets(context);
   return Object.fromEntries(PlanSportSchema.options.map(sport => {
     const adjusted = Math.floor(budgets[sport].targetMinutes * context.availability.days.reduce((sum, day) => sum + (matchingAdjustment(context, day.date, sport)?.volumePercent ?? 100), 0) / 700 / 5) * 5;

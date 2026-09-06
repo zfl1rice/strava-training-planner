@@ -69,7 +69,7 @@ test("multiple race scores are independent; stored custom demands are returned w
   assert.ok(context.performanceProfile.running.every(entry => entry.trend === "UNKNOWN"));
 });
 
-test("date overrides win, missing availability stays unknown, restrictions overlap the target week inclusively", async () => {
+test("date overrides win, missing availability uses defaults, restrictions overlap the target week inclusively", async () => {
   const profile = emptyAthleteProfile();
   profile.availability.recurring = [{ weekday: 0, settings: available(60, ["SWIM"]) }];
   profile.availability.overrides = [{ date: "2026-09-07", settings: available(0, []), note: "Pool closed" }];
@@ -83,7 +83,8 @@ test("date overrides win, missing availability stays unknown, restrictions overl
   const context = await buildPlanningContext(user.id, { now });
   assert.equal(context.availability.days[0].source, "OVERRIDE");
   assert.equal(context.availability.days[0].settings.availableMinutes, 0);
-  assert.equal(context.availability.days[1].settings, null);
+  assert.equal(context.availability.days[1].source, "DEFAULT");
+  assert.deepEqual(context.availability.days[1].settings, { availableMinutes: 1440, maxSessions: 3, allowedSports: ["RUN", "BIKE", "SWIM"], poolAccess: true });
   assert.deepEqual(context.restrictions, [restriction]);
   assert.equal(context.availability.recurring[0].settings.availableMinutes, 60);
 });

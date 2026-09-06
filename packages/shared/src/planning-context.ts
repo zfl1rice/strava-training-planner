@@ -1,3 +1,4 @@
+import { PlanningHistorySchema } from "./planning-history.js";
 import { StoredPlanSchema, validateStoredPlan } from "./structured-workouts.js";
 import { z } from "zod";
 import { WeeklyGoalsSchema } from "./planner.js";
@@ -62,10 +63,11 @@ export const PlanningContextSchema = z.object({
   }).strict(),
   races: z.array(z.object({ id: z.number().int().positive(), goal: RaceGoalSchema }).strict()),
   recentTraining: LocalTrainingSummarySchema,
+  trainingHistory: PlanningHistorySchema.optional(),
   availability: z.object({
     recurring: AvailabilitySchema.innerType().shape.recurring,
     days: z.array(z.object({
-      date: LocalDateSchema, source: z.enum(["OVERRIDE", "RECURRING", "UNCONFIGURED"]),
+      date: LocalDateSchema, source: z.enum(["OVERRIDE", "RECURRING", "DEFAULT", "UNCONFIGURED"]),
       settings: DayAvailabilitySchema.nullable(), note: z.string().nullable(),
     }).strict()).length(7),
   }).strict(),

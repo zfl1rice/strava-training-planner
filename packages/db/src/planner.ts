@@ -1,5 +1,6 @@
+import { isDeepStrictEqual } from "node:util";
 import { buildPlanningContext } from "./planning-context.js";
-import { runPlanGeneration, type PlanProvider, calendarWorkouts, easyWorkout, type StructuredWorkout, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
+import { GenerationInputSchema, generatePlanWithCorrections, type GenerationInput, type FlexiblePlan, type PlanProvider, calendarWorkouts, easyWorkout, type StructuredWorkout, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
 import {
   AUTOMATIC_WEEKLY_GOALS, WeeklyGoalsSchema, generateWeeklyPlan, mondayUtc,
   nextPlanWeek, validateStoredPlan, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan,
@@ -108,36 +109,71 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
 }
 
 
-export async function generateAndSaveFlexiblePlan(userId: number, now = new Date(), scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK", transaction?: Prisma.TransactionClient, requestedWeek?: string, provider?: PlanProvider): Promise<SavedWeeklyPlan> {
-  const generate = async (database: Prisma.TransactionClient) => {
+export class StaleGenerationError extends Error {
+  constructor() { super("Planning inputs changed. Request generation again; the existing plan was kept."); }
+}
+
+// Caller holds the per-athlete training lock for this short read transaction.
+export async function prepareGenerationInput(userId: number, now: Date, weekStartDate: string, database: Prisma.TransactionClient): Promise<GenerationInput> {
+  const context = await buildPlanningContext(userId, { now, weekStart: weekStartDate }, database);
+  const today = localDateAt(now, context.athlete.timeZone);
+  if (addCalendarDays(weekStartDate, 7) <= today) throw new StaleGenerationError();
+  if (context.dataQuality.syncInProgress) throw new PlanSyncInProgressError("Wait for activity sync to finish before generating a plan.");
+  const existing = context.existingPlans.find(plan => plan.content.weekStart.slice(0, 10) === weekStartDate);
+  const preserved: StructuredWorkout[] = [];
+  for (const workout of existing ? calendarWorkouts(existing.content) : []) {
+    const state = existing!.workoutStates.find(value => (value.workoutId ?? `${value.date}:${value.templateId}`) === workout.id);
+    if (workout.date < today || state?.locked || (state && state.completion !== "PLANNED")) {
+      if ("blocks" in workout) { const { steps: _steps, ...original } = workout; preserved.push(original); }
+      else preserved.push({ ...easyWorkout(workout.id, workout.date, workout.sport, workout.durationMinutes),
+        title: workout.title, templateId: workout.templateId, effort: workout.effort, optional: workout.optional,
+        explanation: "Preserved legacy workout; original durations and instructions retained.",
+        blocks: [{ repeat: 1, segments: workout.steps.map(step => ({ label: step.label, seconds: step.minutes * 60,
+          instructions: step.instructions, target: { metric: "RPE", lower: 2, upper: 4 } })) }],
+      });
+    }
+  }
+  return GenerationInputSchema.parse({ version: 1, context, fromDate: today > weekStartDate ? today : weekStartDate, protectedWorkouts: preserved });
+}
+
+export async function generationInputIsCurrent(input: GenerationInput, database: Prisma.TransactionClient, now = new Date()) {
+  const snapshotTime = new Date(input.context.generatedAt);
+  if (localDateAt(now, input.context.athlete.timeZone) !== localDateAt(snapshotTime, input.context.athlete.timeZone)) return false;
+  try {
+    const current = await prepareGenerationInput(input.context.athlete.id, snapshotTime, input.context.targetWeek.startDate, database);
+    return isDeepStrictEqual(current, input);
+  } catch (error) {
+    if (error instanceof PlanSyncInProgressError || error instanceof StaleGenerationError) return false;
+    throw error;
+  }
+}
+
+// Called only after freshness/ownership checks while holding the same training lock.
+export async function saveGeneratedPlan(input: GenerationInput, content: FlexiblePlan, database: Prisma.TransactionClient): Promise<SavedWeeklyPlan> {
+  const userId = input.context.athlete.id;
+  const existing = input.context.existingPlans.find(plan => plan.content.weekStart === content.weekStart);
+  const workoutStates = existing?.workoutStates.filter(state => input.protectedWorkouts.some(workout => workout.id === (state.workoutId ?? `${state.date}:${state.templateId}`))) ?? [];
+  const weekStart = new Date(content.weekStart);
+  const saved = await database.weeklyPlan.upsert({ where: { userId_weekStart: { userId, weekStart } },
+    create: { userId, weekStart, content, workoutStates }, update: { content, workoutStates,
+      updatedAt: new Date(Math.max(Date.now(), Date.parse(existing?.updatedAt ?? "1970-01-01") + 1)) } });
+  return serializeSavedPlan(saved);
+}
+
+export async function generateAndSaveFlexiblePlan(userId: number, now = new Date(), scope: "NEXT_WEEK" | "REMAINING_WEEK" = "NEXT_WEEK", provider?: PlanProvider): Promise<SavedWeeklyPlan> {
+  const snapshot = await prisma.$transaction(async database => {
     await lockUserTraining(database, userId);
     const user = await database.user.findUniqueOrThrow({ where: { id: userId }, select: { timeZone: true } });
-    const today = localDateAt(now, user.timeZone);
-    const weekStartDate = requestedWeek ?? addCalendarDays(calendarMonday(today), scope === "NEXT_WEEK" ? 7 : 0);
-    if (addCalendarDays(weekStartDate, 7) <= today) throw new Error("Requested planning week has ended; request a new plan.");
-    const context = await buildPlanningContext(userId, { now, weekStart: weekStartDate }, database);
-    if (context.dataQuality.syncInProgress) throw new PlanSyncInProgressError("Wait for activity sync to finish before generating a plan.");
-    const existing = context.existingPlans.find(plan => plan.content.weekStart.slice(0, 10) === weekStartDate);
-    const preserved: StructuredWorkout[] = [];
-    for (const workout of existing ? calendarWorkouts(existing.content) : []) {
-      const state = existing!.workoutStates.find(value => (value.workoutId ?? `${value.date}:${value.templateId}`) === workout.id);
-      if (workout.date < today || state?.locked || (state && state.completion !== "PLANNED")) {
-        if ("blocks" in workout) { const { steps: _steps, ...original } = workout; preserved.push(original); }
-        else preserved.push({ ...easyWorkout(workout.id, workout.date, workout.sport, workout.durationMinutes),
-          title: workout.title, templateId: workout.templateId, effort: workout.effort, optional: workout.optional,
-          explanation: "Preserved legacy workout; original durations and instructions retained.",
-          blocks: [{ repeat: 1, segments: workout.steps.map(step => ({ label: step.label, seconds: step.minutes * 60,
-            instructions: step.instructions, target: { metric: "RPE", lower: 2, upper: 4 } })) }],
-        });
-      }
-    }
-    const content = runPlanGeneration(context, today > weekStartDate ? today : weekStartDate, preserved, provider);
-    const workoutStates = existing?.workoutStates.filter(state => preserved.some(workout => workout.id === (state.workoutId ?? `${state.date}:${state.templateId}`))) ?? [];
-    const weekStart = new Date(content.weekStart);
-    const saved = await database.weeklyPlan.upsert({ where: { userId_weekStart: { userId, weekStart } },
-      create: { userId, weekStart, content, workoutStates }, update: { content, workoutStates,
-        updatedAt: new Date(Math.max(Date.now(), Date.parse(existing?.updatedAt ?? "1970-01-01") + 1)) } });
-    return serializeSavedPlan(saved);
-  };
-  return transaction ? generate(transaction) : prisma.$transaction(generate, { timeout: 15000 });
+    const weekStart = addCalendarDays(calendarMonday(localDateAt(now, user.timeZone)), scope === "NEXT_WEEK" ? 7 : 0);
+    const latest = await database.jobRun.findFirst({ where: { userId, jobType: "COMPUTE_PLAN" }, orderBy: { id: "desc" }, select: { id: true, status: true } });
+    if (latest && ["PENDING", "RUNNING"].includes(latest.status)) throw new Error("A queued generation is already active");
+    return { input: await prepareGenerationInput(userId, now, weekStart, database), latestRequestId: latest?.id ?? null };
+  }, { timeout: 15000 });
+  const content = await generatePlanWithCorrections(snapshot.input, provider);
+  return prisma.$transaction(async database => {
+    await lockUserTraining(database, userId);
+    const latest = await database.jobRun.findFirst({ where: { userId, jobType: "COMPUTE_PLAN" }, orderBy: { id: "desc" }, select: { id: true } });
+    if ((latest?.id ?? null) !== snapshot.latestRequestId || !await generationInputIsCurrent(snapshot.input, database, now)) throw new StaleGenerationError();
+    return saveGeneratedPlan(snapshot.input, content, database);
+  }, { timeout: 15000 });
 }

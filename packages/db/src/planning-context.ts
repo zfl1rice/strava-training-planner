@@ -2,7 +2,7 @@ import {
   calendarWorkouts, validateStoredPlan, AthleteProfileSchema, CAPABILITIES, CapabilitySchema, ExistingContextPlanSchema,
   LocalDateSchema, PerformanceEvidenceSchema, PlanningContextSchema, PlanningTimestampSchema, RaceGoalSchema,
   TimeZoneSchema, WorkoutStatesSchema, addCalendarDays, calendarMonday, calendarWeekday,
-  emptyAthleteProfile, localDateAt, summarizeTraining,
+  summarizePlanningHistory, workoutEffort, defaultDayAvailability, emptyAthleteProfile, localDateAt, summarizeTraining,
   type AthleteProfile, type PlanningContext,
 } from "@pkg/shared";
 import type { Prisma } from "@prisma/client";
@@ -40,9 +40,10 @@ export async function saveAthleteProfile(userId: number, input: unknown, timeZon
 export async function createRaceGoal(userId: number, input: unknown): Promise<number> {
   const goal = RaceGoalSchema.parse(input);
   const { date, importance, ...content } = goal;
-  const race = await prisma.raceGoal.create({ data: {
-    userId, date: new Date(`${date}T00:00:00Z`), importance, content,
-  } });
+  const race = await prisma.$transaction(async database => {
+    await lockUserTraining(database, userId);
+    return database.raceGoal.create({ data: { userId, date: new Date(`${date}T00:00:00Z`), importance, content } });
+  });
   return race.id;
 }
 
@@ -51,6 +52,7 @@ export async function createRaceGoal(userId: number, input: unknown): Promise<nu
 export async function recordPerformanceEvidence(userId: number, input: unknown): Promise<number> {
   const evidence = PerformanceEvidenceSchema.parse(input);
   return prisma.$transaction(async database => {
+    await lockUserTraining(database, userId);
     if (evidence.sourceActivityId !== null && !await database.activity.findFirst({
       where: { id: evidence.sourceActivityId, userId, type: evidence.sport }, select: { id: true },
     })) throw new Error("Evidence activity must belong to this athlete and sport");
@@ -108,7 +110,7 @@ export async function buildPlanningContext(
     const startDate = LocalDateSchema.parse(options.weekStart ?? addCalendarDays(currentMonday, 7));
     if (calendarWeekday(startDate) !== 0) throw new Error("Planning week must start on Monday");
     const endDate = addCalendarDays(startDate, 7);
-    const oldestDate = addCalendarDays(currentMonday, -21);
+    const oldestDate = addCalendarDays(currentMonday, -84);
     const profileRow = await database.athleteProfile.findUnique({ where: { userId }, select: { content: true } });
     const profile = AthleteProfileSchema.parse(profileRow?.content ?? emptyAthleteProfile());
     const citedIds = profileEvidenceIds(profile);
@@ -127,12 +129,12 @@ export async function buildPlanningContext(
       database.jobRun.findFirst({ where: { userId, jobType: "STRAVA_SYNC" }, orderBy: { id: "desc" }, select: { status: true } }),
       database.jobRun.findFirst({ where: { userId, jobType: "STRAVA_SYNC", status: { in: ["PENDING", "RUNNING"] } }, select: { id: true } }),
     ]);
-    const feedbackPlans = await database.weeklyPlan.findMany({ where: { userId, weekStart: { gte: new Date(`${addCalendarDays(currentMonday, -28)}T00:00:00Z`), lte: new Date(`${currentMonday}T00:00:00Z`) } }, orderBy: { weekStart: "desc" } });
+    const feedbackPlans = await database.weeklyPlan.findMany({ where: { userId, weekStart: { gte: new Date(`${addCalendarDays(currentMonday, -84)}T00:00:00Z`), lte: new Date(`${currentMonday}T00:00:00Z`) } }, orderBy: { weekStart: "desc" } });
     const feedback = feedbackPlans.flatMap(plan => {
       const workouts = calendarWorkouts(validateStoredPlan(plan.content));
       return WorkoutStatesSchema.parse(plan.workoutStates).flatMap(state => {
         const workout = workouts.find(value => value.id === (state.workoutId ?? `${state.date}:${state.templateId}`));
-        return state.feedback && workout ? [{ date: state.date, sport: workout.sport, title: workout.title,
+        return state.feedback && workout && state.date >= addCalendarDays(currentMonday, -28) ? [{ date: state.date, sport: workout.sport, title: workout.title,
           completion: state.completion, ...state.feedback }] : [];
       });
     }).sort((a, b) => b.date.localeCompare(a.date));
@@ -143,9 +145,19 @@ export async function buildPlanningContext(
 
     // Reuse the existing numeric aggregation on synthetic UTC calendar labels.
     // No real activity timestamp is changed or exposed as a synthetic timestamp.
-    const summary = summarizeTraining(activities.map(activity => ({
+    const localActivities = activities.map(activity => ({
       ...activity, startedAt: new Date(`${localDateAt(activity.startedAt, timeZone)}T00:00:00Z`),
-    })), new Date(`${today}T23:59:59.999Z`));
+    }));
+    const summary = summarizeTraining(localActivities, new Date(`${today}T23:59:59.999Z`));
+    const completedWorkouts = feedbackPlans.flatMap(plan => {
+      const workouts = calendarWorkouts(validateStoredPlan(plan.content));
+      return WorkoutStatesSchema.parse(plan.workoutStates).flatMap(state => {
+        const workout = workouts.find(value => value.id === (state.workoutId ?? `${state.date}:${state.templateId}`));
+        return workout && state.completion === "COMPLETED" ? [{ date: workout.date, sport: workout.sport,
+          hard: ("blocks" in workout ? workoutEffort(workout) : workout.effort) === "HARD" }] : [];
+      });
+    });
+    const trainingHistory = summarizePlanningHistory(localActivities, today, completedWorkouts);
     const capabilities = (sport: keyof typeof CAPABILITIES) => CAPABILITIES[sport].map(key =>
       profile.capabilities.find(value => value.sport === sport && value.key === key) ?? CapabilitySchema.parse({
         sport, key, score: null, confidence: "INSUFFICIENT_EVIDENCE", trend: "UNKNOWN", evidenceIds: [], updatedAt: null, methodVersion: null,
@@ -154,12 +166,12 @@ export async function buildPlanningContext(
       const date = addCalendarDays(startDate, weekday);
       const override = profile.availability.overrides.find(value => value.date === date);
       const recurring = profile.availability.recurring.find(value => value.weekday === weekday);
-      return { date, source: override ? "OVERRIDE" : recurring ? "RECURRING" : "UNCONFIGURED",
-        settings: override?.settings ?? recurring?.settings ?? null, note: override?.note ?? null };
+      return { date, source: override ? "OVERRIDE" : recurring ? "RECURRING" : "DEFAULT",
+        settings: override?.settings ?? recurring?.settings ?? defaultDayAvailability(), note: override?.note ?? null };
     });
     const notes = ["Existing v1 plans retain their original UTC dates and fixed scheduling policy; they are not rescheduled by this context builder.",
       "Derived zone formulas, capability scoring, and baseline estimation are not calculated in this milestone."];
-    if (days.some(day => day.settings === null)) notes.push("Some target days have unconfigured availability; do not assume unlimited training time.");
+    if (days.some(day => day.source === "DEFAULT")) notes.push("Days without saved availability allow all sports, pool access, and three sessions with no additional daily time cap. Weekly goals determine volume; edit availability to restrict these defaults.");
     if (!connection?.lastSuccessfulSyncAt) notes.push("No successful activity sync is recorded; training history may be incomplete.");
     if (latestSync?.status === "FAILED" || unfinishedSync) notes.push("Activity sync is failed or unfinished; stored history may be partial.");
 
@@ -182,6 +194,7 @@ export async function buildPlanningContext(
       recentTraining: { ...summary, timeZone, generatedAt: now.toISOString(), weeks: summary.weeks.map(week => ({
         ...week, weekStart: week.weekStart.slice(0, 10), weekEnd: week.weekEnd.slice(0, 10),
       })) },
+      trainingHistory,
       availability: { recurring: profile.availability.recurring, days },
       adjustments: (profile.adjustments ?? []).filter(value => value.startDate < endDate && value.endDate >= startDate),
       restrictions: profile.restrictions.filter(value => value.startDate < endDate && (!value.endDate || value.endDate >= startDate)),

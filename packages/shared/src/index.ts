@@ -14,3 +14,6 @@ export * from "./structured-workouts.js";
 export * from "./adaptive-planner.js";
 export * from "./workout-targets.js";
 export * from "./plan-generation.js";
+
+export * from "./planning-history.js";
+export * from "./planning-deviations.js";

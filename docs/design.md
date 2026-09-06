@@ -1,3 +1,6 @@
+> Current generation semantics: see [AI readiness checkpoint](ai-readiness.md).
+> It supersedes earlier hard-session/goal-cap rules for provider validation.
+
 # Triathlon training planner — detailed design
 
 **Status:** Draft for review · **Date:** September 5, 2026

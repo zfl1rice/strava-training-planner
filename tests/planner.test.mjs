@@ -428,6 +428,6 @@ test("goal API checks sessions, origin, invalid JSON, and strict values without 
   await executePlanRun(state.generation.id);
   const saved = await getPlannerState(user.id);
   assert.deepEqual(saved.nextPlan.content.goals, goals);
-  assert.equal(saved.nextPlan.content.totalMinutes, 0); // No configured availability.
+  assert.equal(saved.nextPlan.content.totalMinutes, 300); // Default availability fits all goals.
   assert.deepEqual((await (await readPlan(request("GET"))).json()).goals, goals);
 });

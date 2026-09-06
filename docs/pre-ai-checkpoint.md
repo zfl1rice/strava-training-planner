@@ -1,5 +1,8 @@
 # Pre-AI integration checklist
 
+The later [AI readiness checkpoint](ai-readiness.md) updates proposal validity and
+generation execution semantics below. Fallback scheduling preferences remain unchanged.
+
 Each step is validated and committed separately. No model calls or AI credentials
 are introduced by this sequence.
 
@@ -30,7 +33,7 @@ and worker with `npm run dev`. The new migration adds only `JobRun.planRequest`;
 it has already been applied to the local development database for this change.
 No new environment variables, dependencies, or services are required.
 
-1. Configure your timezone/baselines in Profile, available days in Availability,
+1. Configure your timezone/baselines in Profile, any availability exceptions in Availability,
    and weekly minutes under the calendar's Plan settings & weekly goals section.
 2. Generate next week. The web returns 202 and polls persistent status. Generation
    continues if you navigate away. If the worker is offline, the request waits.
@@ -41,23 +44,39 @@ No new environment variables, dependencies, or services are required.
 5. Regenerate next week or the rest of this week. Past dates and completed, modified,
    stopped, or locked workouts remain. Calendar totals explain a shortfall against goals.
 
+Availability setup is optional: every day defaults to available for all three sports
+with pool access and up to three sessions. Weekly goals determine volume, with no
+additional daily time cap. Uncheck unavailable days and save to make them rest days;
+existing saved settings and date overrides retain precedence. Regenerate to apply
+changes to a saved plan. Enter `0` to exclude swimming; a blank goal means automatic.
+The 120-run/240-bike/0-swim regression schedules all 360 minutes without setup.
+Empty-plan explanations remain visible when explicit limits or missing goals/history
+prevent generation.
+
+Availability-default validation: typecheck, lint, production build, and 65 tests
+across adaptive planning, planning context, planner, and settings pass. A browser
+check verified all seven default days are checked and that an unchecked rest day,
+daily time limit, and pool closure persist after save/reload in an isolated database.
+
 ## Scheduling and target policy
 
-- Unconfigured availability is unavailable. Date overrides replace recurring days.
+- Missing availability uses the defaults above (1440 minutes represents no extra
+  daily time cap, not a training target). Date overrides replace recurring days.
   Daily minutes are shared across sessions, and swimming requires pool access.
 - The generator allocates five-minute blocks, prioritizing sports with fewer
   eligible days. It can create several sessions per day and exceed the old template
   caps. It currently creates at most one new session of each sport per day.
-- At least one day is reserved for rest. When all days are available, the least
-  available day is reserved. New hard workouts cannot be consecutive or share a
+- The deterministic fallback reserves at least one day for rest. When all days are available, the least
+  available day is reserved. Its new hard workouts cannot be consecutive or share a
   date with another hard workout; at most two are scheduled. Protected history is
-  retained even when it exceeds new limits, and cannot justify adding more excess.
+  retained even when it exceeds new limits, and cannot justify exceeding explicit daily limits. Provider proposals may deviate
+  from volume targets and hard-session spacing; those differences are nonfatal analysis.
 - Manual goals remain unchanged. Blank goals use the previous three completed
   local weeks. With no history and no custom goals, the target is zero; the planner
   explains how to configure inputs instead of guessing training volume.
 - Temporary volume percentages are prorated across their dates in the target week.
   The last matching adjustment wins; percentages do not stack. Intensity changes
-  apply on matching workout dates. Required hard-session spacing can limit increases.
+  apply on matching workout dates. Fallback hard-session spacing preferences can limit its increases.
 - Relative targets support RPE, percentage of cycling FTP, running max HR, and
   running/swimming threshold pace. A pace percentage multiplies seconds per unit
   distance, so a higher percentage means slower pace. Numeric target snapshots
@@ -85,27 +104,29 @@ workouts. It cannot redefine goals, totals, athlete identity, or protected worko
 See [the illustrative proposal](plan-proposal.example.json). The server recomputes
 resolved targets, effort classifications, and totals. Validation rejects malformed
 intervals, duplicate IDs, wrong dates, forbidden sports, missing pool access, daily
-overbooking, excess adjusted volume, missing rest, and conflicting hard sessions.
+overbooking, explicit zero-goal sport exclusions, and unresolvable targets. Goal
+differences, missing rest, and clustered hard sessions are nonfatal deviations.
 
-`PlanProvider` is a small synchronous, CPU-only function at this checkpoint. The
-deterministic implementation and simulated-provider tests use the same finalizer.
-The job processor loads input from Postgres and commits the validated plan and
+`PlanProvider` supports asynchronous generation with up to three proposal-correction
+attempts. The deterministic implementation and simulated providers use the same
+finalizer. Generation runs outside transactions against a persisted input snapshot.
+The worker checks freshness and attempt ownership before committing the plan and
 SUCCESS together. A duplicate delivery after success does not regenerate the plan.
 
 Generation requests persist scope and week in `JobRun.planRequest`; BullMQ carries
-only `{ jobRunId }`. Pending requests are reused when scope/week match. A different
+only `{ jobRunId }`. Pending requests are reused when scope/week and inputs still match; a stale
+snapshotted request can be superseded after an edit. A different
 request receives a conflict while one is pending. Recovery scans run at worker
 startup and every 30 seconds. Attempts persist across Redis job loss, with a
 three-attempt limit, exponential backoff, execution leases, and terminal status.
 The same user training lock coordinates generation, sync intent, feedback, and
 settings writes. Sync and pending/running generation exclude each other.
 
-The next AI increment must add an asynchronous network-provider adapter without
-holding this short database transaction during a model request. It must recheck
-the input revision and protected state before committing a response, and maintain
-the execution lease while waiting. No SDK, model, API key, prompt, or network model
-call is included here. The current synchronous provider should not be replaced
-with a blocking HTTP call inside the transaction.
+The next AI increment can implement the asynchronous provider contract. Snapshot
+freshness and protected-state checks are now implemented; provider timeouts,
+cancellation and any lease renewal still need a transport policy. No SDK, model,
+API key, prompt, or model call is included here. See the AI readiness checkpoint
+for the current retry and execution semantics.
 
 ## Review map
 

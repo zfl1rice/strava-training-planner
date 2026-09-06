@@ -1,3 +1,4 @@
+import { PlanningAnalysisSchema } from "./planning-deviations.js";
 import { targetDescription } from "./workout-targets.js";
 import { z } from "zod";
 import { PlanSportSchema, WeeklyPlanSchema, validateWeeklyPlan, type WeeklyPlan } from "./planner.js";
@@ -43,6 +44,7 @@ export type StructuredWorkout = z.infer<typeof StructuredWorkoutSchema>;
 
 export const FlexiblePlanSchema = WeeklyPlanSchema.extend({
   version: z.literal(2), timeZone: TimeZoneSchema,
+  analysis: PlanningAnalysisSchema.optional(),
   totalMinutes: z.number().finite().nonnegative(),
   budgets: z.object({ RUN: WeeklyPlanSchema.shape.budgets.shape.RUN.extend({ plannedMinutes: z.number().finite().nonnegative() }),
     BIKE: WeeklyPlanSchema.shape.budgets.shape.BIKE.extend({ plannedMinutes: z.number().finite().nonnegative() }),

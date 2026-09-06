@@ -1,3 +1,6 @@
+> For the current generation changes, start with the [AI readiness review map](ai-readiness.md#review-map).
+> Earlier policy descriptions below may describe the previous planner.
+
 # Code review and source guide
 
 ## Pre-AI generation checkpoint

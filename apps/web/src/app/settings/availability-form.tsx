@@ -1,22 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { PlanSportSchema, type PlanningSettings } from "@pkg/shared";
+import { defaultDayAvailability, PlanSportSchema, type PlanningSettings } from "@pkg/shared";
 import type { SaveSettings } from "./settings-editor";
 
 type Availability = PlanningSettings["availability"];
 type DaySettings = Availability["recurring"][number]["settings"];
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const newDay = (): DaySettings => ({ availableMinutes: 60, maxSessions: 1, allowedSports: ["RUN", "BIKE"], poolAccess: false });
 const restDay = (): DaySettings => ({ availableMinutes: 0, maxSessions: 0, allowedSports: [], poolAccess: false });
 
 function DayFields({ value, change }: { value: DaySettings; change: (day: DaySettings) => void }) {
   return <div className="space-y-3">
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.availableMinutes < 1440}
+      onChange={event => change({ ...value, availableMinutes: event.target.checked ? 120 : 1440, maxSessions: value.maxSessions || 3 })} />Limit daily training time</label>
     <div className="grid grid-cols-2 gap-3">
-      <label className="settings-label">Total minutes<input type="number" required min="0" max="1440" step="1" value={value.availableMinutes}
-        onChange={event => { const minutes = Number(event.target.value); change({ ...value, availableMinutes: minutes, maxSessions: minutes === 0 ? 0 : value.maxSessions || 1 }); }} /></label>
+      {value.availableMinutes < 1440 && <label className="settings-label">Total minutes<input type="number" required min="0" max="1440" step="1" value={value.availableMinutes}
+        onChange={event => { const minutes = Number(event.target.value); change({ ...value, availableMinutes: minutes, maxSessions: minutes === 0 ? 0 : value.maxSessions || 3 }); }} /></label>}
       <label className="settings-label">Maximum sessions<input type="number" required min="0" max="24" step="1" value={value.maxSessions}
-        onChange={event => { const sessions = Number(event.target.value); change({ ...value, maxSessions: sessions, availableMinutes: sessions === 0 ? 0 : value.availableMinutes }); }} /></label>
+        onChange={event => { const sessions = Number(event.target.value); change({ ...value, maxSessions: sessions, availableMinutes: sessions === 0 ? 0 : value.availableMinutes || 1440 }); }} /></label>
     </div>
     <div className="flex flex-wrap gap-4 text-sm">
       {PlanSportSchema.options.map(sport => <label key={sport} className="flex items-center gap-2">
@@ -33,8 +34,8 @@ export default function AvailabilityForm({ settings, saving, save }: { settings:
   const [availability, setAvailability] = useState(settings.availability);
   const [overrideDate, setOverrideDate] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
-  const changeRecurring = (weekday: number, day: DaySettings | null) => setAvailability(current => ({ ...current,
-    recurring: [...current.recurring.filter(value => value.weekday !== weekday), ...(day ? [{ weekday, settings: day }] : [])].sort((a, b) => a.weekday - b.weekday),
+  const changeRecurring = (weekday: number, day: DaySettings) => setAvailability(current => ({ ...current,
+    recurring: [...current.recurring.filter(value => value.weekday !== weekday), { weekday, settings: day }].sort((a, b) => a.weekday - b.weekday),
   }));
   const changeOverride = (date: string, update: Partial<Availability["overrides"][number]>) => setAvailability(current => ({ ...current,
     overrides: current.overrides.map(value => value.date === date ? { ...value, ...update } : value),
@@ -47,14 +48,15 @@ export default function AvailabilityForm({ settings, saving, save }: { settings:
       <legend className="sr-only">Availability settings</legend>
       <section className="settings-card space-y-4" aria-labelledby="recurring-heading">
         <h2 id="recurring-heading" className="text-lg font-semibold">Typical week</h2>
-        <p className="text-sm text-slate-600">Dates use {settings.timeZone}. Sessions share the day&apos;s total minutes. Set zero sessions for a rest day; unchecked days remain unconfigured.</p>
+        <p className="text-sm text-slate-600">Dates use {settings.timeZone}. Every day starts available for all sports with pool access, up to three sessions, and no additional daily time cap. Weekly goals determine training volume. Uncheck unavailable days or customize the limits below; the planner still reserves a rest day.</p>
         <div className="grid gap-4 lg:grid-cols-2">
           {weekdays.map((name, weekday) => {
-            const day = availability.recurring.find(value => value.weekday === weekday);
+            const day = availability.recurring.find(value => value.weekday === weekday)?.settings ?? defaultDayAvailability();
+            const available = day.maxSessions > 0 && day.availableMinutes > 0;
             return <fieldset key={name} className="rounded-lg border border-slate-200 p-4">
               <legend className="px-1 text-sm font-semibold">{name}</legend>
-              <label className="mb-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(day)} onChange={event => changeRecurring(weekday, event.target.checked ? newDay() : null)} />Configure {name}</label>
-              {day ? <DayFields value={day.settings} change={value => changeRecurring(weekday, value)} /> : <p className="text-xs text-slate-500">Availability not set.</p>}
+              <label className="mb-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={available} onChange={event => changeRecurring(weekday, event.target.checked ? defaultDayAvailability() : restDay())} />Available {name}</label>
+              {available ? <DayFields value={day} change={value => changeRecurring(weekday, value)} /> : <p className="text-xs text-slate-500">Unavailable / rest day.</p>}
             </fieldset>;
           })}
         </div>

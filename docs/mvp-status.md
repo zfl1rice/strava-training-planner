@@ -5,11 +5,15 @@ Proposals in that document do not change the implementation status below.
 
 ## Current pre-AI generation checkpoint
 
+- [x] [AI readiness checkpoint](ai-readiness.md): hard/soft rules, recorded history,
+  deviations, proposal correction, snapshot freshness, and evaluation scenarios.
+
 - [x] All seven [pre-AI generation steps](pre-ai-checkpoint.md), committed separately.
 - [x] Flexible workouts, local availability scheduling, baseline targets and charts.
 - [x] Feedback, restrictions, temporary adjustments, and protected regeneration.
 - [x] Typed generation queue, persistent retries/recovery, and status polling.
 - [x] Validated provider contract with simulated custom-workout and rejection tests.
+- [x] Availability defaults to every day; saved rest days, pool restrictions, and date overrides take precedence.
 - [ ] AI calls, automatic performance inference, and race-specific training selection.
 
 The dated sections below record earlier checkpoints. Their deferred items may have

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, generateFlexiblePlan, resolveWorkoutTargets, JOBS, QUEUES, planJobId, bullConnectionFromUrl, runPlanGeneration, deterministicPlanProvider } from "@pkg/shared";
+import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, defaultDayAvailability, generateFlexiblePlan, resolveWorkoutTargets, JOBS, QUEUES, planJobId, bullConnectionFromUrl, runPlanGeneration, deterministicPlanProvider } from "@pkg/shared";
 import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan, getPlanningSettings, updatePlanningSettings, updateWorkoutFeedback, createOrReusePlanRun, executePlanRun, createOrReuseSyncRun } from "@pkg/db";
 
 assert.match(process.env.OAUTH_TEST_DATABASE ?? "", /^planner_oauth_test_[a-f0-9]{16}$/);
@@ -49,6 +49,7 @@ async function configuredContext() {
   const profile = emptyAthleteProfile();
   profile.availability.recurring = Array.from({ length: 6 }, (_, i) => ({ weekday: i + 1,
     settings: { availableMinutes: 240, maxSessions: 2, allowedSports: ["RUN", "BIKE", "SWIM"], poolAccess: i === 1 || i === 3 } }));
+  profile.availability.recurring.push({ weekday: 0, settings: { availableMinutes: 0, maxSessions: 0, allowedSports: [], poolAccess: false } });
   await saveAthleteProfile(user.id, profile, "America/Chicago");
   await saveWeeklyGoals(user.id, { RUN: 200, BIKE: 500, SWIM: 150 });
   return buildPlanningContext(user.id, { now });
@@ -69,9 +70,9 @@ test("availability scheduling exceeds old caps and preserves goals, pool access 
   }
 });
 
-test("unconfigured days, overrides and restrictions produce explicit goal shortfalls", async () => {
+test("unavailable days, overrides and restrictions produce explicit goal shortfalls", async () => {
   const context = await configuredContext();
-  for (const day of context.availability.days) { day.settings = null; day.source = "UNCONFIGURED"; }
+  for (const day of context.availability.days) { day.settings = { availableMinutes: 0, maxSessions: 0, allowedSports: [], poolAccess: false }; day.source = "OVERRIDE"; }
   assert.equal(generateFlexiblePlan(context).totalMinutes, 0);
   context.availability.days[1].settings = { availableMinutes: 200, maxSessions: 1, allowedSports: ["BIKE"], poolAccess: false };
   context.restrictions = [{ id: "limit", sport: "BIKE", kind: "MAX_SESSION_MINUTES", maxSessionMinutes: 40,
@@ -233,15 +234,13 @@ test("simulated provider can create custom intervals; the server computes target
   assert.deepEqual(plan.goals, context.goals);
 });
 
-test("provider cannot redefine goals, overschedule, hide hard effort, or replace protected IDs", async () => {
+test("provider cannot redefine goals, violate availability, or replace protected IDs", async () => {
   const context = await configuredContext();
   const proposal = () => ({ version: 1, explanation: "Fixture", workouts: [customPlan().days[1]] });
   for (const mutate of [
     p => { p.goals = { RUN: 10000 }; },
     p => { p.workouts[0].date = "2026-09-07"; },
     p => { p.workouts[0].sport = "SWIM"; p.workouts[0].blocks[0].segments[0].target.metric = "RPE"; p.workouts[0].blocks[0].segments[0].target.lower = 8; p.workouts[0].blocks[0].segments[0].target.upper = 9; },
-    p => { p.workouts.push({ ...structuredClone(p.workouts[0]), id: "other", date: "2026-09-09", effort: "EASY" }); },
-    p => { p.workouts[0].blocks[0].repeat = 60; p.workouts[0].durationMinutes = 240; context.goals.BIKE = 100; },
   ]) { const response = proposal(); mutate(response); assert.throws(() => runPlanGeneration(context, context.targetWeek.startDate, [], () => response)); }
   context.goals.BIKE = 500;
   const protectedWorkout = customPlan().days[1];
@@ -261,7 +260,7 @@ test("invalid provider output rolls back and completed-week feedback reaches the
     locked: false, completion: "COMPLETED", comment: "Too easy", rpe: 2 });
   const context = await buildPlanningContext(user.id, { now: new Date("2026-09-14T12:00:00Z") });
   assert.ok(context.recentFeedback.some(value => value.comment === "Too easy"));
-  await assert.rejects(generateAndSaveFlexiblePlan(user.id, now, "NEXT_WEEK", undefined, undefined, () => ({ version: 1, explanation: "Invalid", workouts: [{ invalid: true }] })));
+  await assert.rejects(generateAndSaveFlexiblePlan(user.id, now, "NEXT_WEEK", () => ({ version: 1, explanation: "Invalid", workouts: [{ invalid: true }] })));
   assert.deepEqual((await prisma.weeklyPlan.findUnique({ where: { id: original.id } })).content, original.content);
 });
 
@@ -297,4 +296,39 @@ test("second-based custom workouts retain fractional minutes and reject inconsis
   assert.equal(plan.totalMinutes, 1.5);
   assert.equal(plan.budgets.BIKE.plannedMinutes, 1.5);
   assert.equal(FlexiblePlanSchema.safeParse({ ...plan, totalMinutes: 2 }).success, false);
+});
+
+test("120 run and 240 bike minutes schedule without availability setup", async () => {
+  await saveWeeklyGoals(user.id, { RUN: 120, BIKE: 240, SWIM: 0 });
+  const context = await buildPlanningContext(user.id, { now });
+  assert.ok(context.availability.days.every(day => day.source === "DEFAULT"));
+  for (const day of context.availability.days) assert.deepEqual(day.settings, defaultDayAvailability());
+  const saved = await generateAndSaveFlexiblePlan(user.id, now);
+  assert.equal(saved.content.budgets.RUN.plannedMinutes, 120);
+  assert.equal(saved.content.budgets.BIKE.plannedMinutes, 240);
+  assert.equal(saved.content.budgets.SWIM.plannedMinutes, 0);
+  assert.equal(saved.content.totalMinutes, 360);
+  assert.ok(saved.content.days.some(day => day.kind === "REST"));
+  assert.equal(await prisma.athleteProfile.count({ where: { userId: user.id } }), 0);
+});
+
+test("saved rest days and pool closures override defaults while missing days allow swimming", async () => {
+  const profile = emptyAthleteProfile();
+  const rest = { availableMinutes: 0, maxSessions: 0, allowedSports: [], poolAccess: false };
+  profile.availability.recurring = [{ weekday: 0, settings: rest },
+    { weekday: 1, settings: { ...defaultDayAvailability(), poolAccess: false } }];
+  profile.availability.overrides = [
+    { date: "2026-09-01", settings: rest, note: "Expired" },
+    { date: "2026-09-09", settings: rest, note: "Travel" },
+  ];
+  await saveAthleteProfile(user.id, profile, "UTC");
+  await saveWeeklyGoals(user.id, { RUN: 120, BIKE: 240, SWIM: 60 });
+  const context = await buildPlanningContext(user.id, { now });
+  assert.deepEqual(context.availability.days.map(day => day.source), ["RECURRING", "RECURRING", "OVERRIDE", "DEFAULT", "DEFAULT", "DEFAULT", "DEFAULT"]);
+  const saved = await generateAndSaveFlexiblePlan(user.id, now);
+  const workouts = saved.content.days.filter(day => day.kind === "WORKOUT");
+  assert.equal(saved.content.totalMinutes, 420);
+  assert.ok(workouts.every(workout => !["2026-09-07", "2026-09-09"].includes(workout.date)));
+  assert.ok(workouts.filter(workout => workout.sport === "SWIM").every(workout => workout.date !== "2026-09-08"));
+  assert.deepEqual((await getPlanningSettings(user.id)).availability, profile.availability);
 });

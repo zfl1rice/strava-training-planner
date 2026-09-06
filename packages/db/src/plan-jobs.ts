@@ -1,7 +1,8 @@
-import { GenerationRequestSchema, LocalDateSchema, PLAN_ATTEMPTS, addCalendarDays, calendarMonday, localDateAt } from "@pkg/shared";
+import { GenerationInputSchema, generatePlanWithCorrections, ProposalAttemptsExhaustedError, type PlanProvider, GenerationRequestSchema, LocalDateSchema, PLAN_ATTEMPTS, addCalendarDays, calendarMonday, localDateAt } from "@pkg/shared";
 import { prisma } from "./client.js";
 import { lockUserTraining } from "./training-lock.js";
-import { generateAndSaveFlexiblePlan, PlanSyncInProgressError } from "./planner.js";
+import { prepareGenerationInput, generationInputIsCurrent, saveGeneratedPlan, StaleGenerationError, PlanSyncInProgressError } from "./planner.js";
+const StoredRequestSchema = GenerationRequestSchema.extend({ weekStart: LocalDateSchema, snapshot: GenerationInputSchema.optional() });
 
 export class TrainingBusyError extends Error {}
 
@@ -14,15 +15,16 @@ export async function createOrReusePlanRun(userId: number, input: unknown, now =
     const user = await database.user.findUniqueOrThrow({ where: { id: userId } });
     const weekStart = addCalendarDays(calendarMonday(localDateAt(now, user.timeZone)), request.scope === "NEXT_WEEK" ? 7 : 0);
     if (existing) {
-      const pending = GenerationRequestSchema.extend({ weekStart: LocalDateSchema }).parse(existing.planRequest);
+      const pending = StoredRequestSchema.parse(existing.planRequest);
       if (pending.scope !== request.scope || pending.weekStart !== weekStart) throw new TrainingBusyError("A different generation request is already pending. Wait for it to finish.");
-      return existing;
+      if (!pending.snapshot || await generationInputIsCurrent(pending.snapshot, database, now)) return existing;
+      await database.jobRun.update({ where: { id: existing.id }, data: { status: "CANCELLED", error: "Superseded after planning inputs changed", finishedAt: now, leaseExpiresAt: null, nextRetryAt: null } });
     }
     return database.jobRun.create({ data: { userId, jobType: "COMPUTE_PLAN", planRequest: { ...request, weekStart }, createdAt: now } });
   });
 }
 
-export async function executePlanRun(id: number) {
+export async function executePlanRun(id: number, provider?: PlanProvider) {
   const row = await prisma.jobRun.findUnique({ where: { id } });
   if (!row || row.jobType !== "COMPUTE_PLAN") throw new Error("Plan request not found");
   const claim = await prisma.$transaction(async database => {
@@ -42,18 +44,39 @@ export async function executePlanRun(id: number) {
   if ("terminal" in claim) return { status: claim.terminal };
   if ("deferred" in claim) return { status: "DEFERRED", until: claim.deferred };
   try {
+    const input = await prisma.$transaction(async database => {
+      await lockUserTraining(database, row.userId);
+      const current = await database.jobRun.findUniqueOrThrow({ where: { id } });
+      if (current.status !== "RUNNING" || current.attemptsStarted !== claim.attempt) throw new StaleGenerationError();
+      const request = StoredRequestSchema.parse(current.planRequest);
+      const snapshot = request.snapshot ?? await prepareGenerationInput(row.userId, new Date(), request.weekStart, database);
+      if (snapshot.context.athlete.id !== row.userId || snapshot.context.targetWeek.startDate !== request.weekStart) throw new StaleGenerationError();
+      if (!await generationInputIsCurrent(snapshot, database)) throw new StaleGenerationError();
+      if (!request.snapshot) await database.jobRun.update({ where: { id }, data: { planRequest: { ...request, snapshot } } });
+      return snapshot;
+    }, { timeout: 15000 });
+    // No transaction or database lock spans provider execution/correction attempts.
+    const content = await generatePlanWithCorrections(input, provider);
     return await prisma.$transaction(async database => {
       await lockUserTraining(database, row.userId);
       const current = await database.jobRun.findUniqueOrThrow({ where: { id } });
-      if (current.status !== "RUNNING" || current.attemptsStarted !== claim.attempt || !current.leaseExpiresAt || current.leaseExpiresAt.getTime() <= Date.now()) throw new Error("Generation lease lost");
-      const request = GenerationRequestSchema.extend({ weekStart: LocalDateSchema }).parse(current.planRequest);
-      await generateAndSaveFlexiblePlan(row.userId, new Date(), request.scope, database, request.weekStart);
-      // Commit the result and SUCCESS together; delivery after a lost Redis ack
-      // observes SUCCESS and never regenerates a second time.
+      if (current.status !== "RUNNING" || current.attemptsStarted !== claim.attempt) return { status: current.status };
+      if (!current.leaseExpiresAt || current.leaseExpiresAt.getTime() <= Date.now()) throw new Error("Generation lease lost");
+      const newer = await database.jobRun.findFirst({ where: { userId: row.userId, jobType: "COMPUTE_PLAN", id: { gt: id } }, select: { id: true } });
+      if (newer || !await generationInputIsCurrent(input, database)) throw new StaleGenerationError();
+      await saveGeneratedPlan(input, content, database);
       await database.jobRun.update({ where: { id }, data: { status: "SUCCESS", finishedAt: new Date(), leaseExpiresAt: null, nextRetryAt: null, error: null } });
       return { status: "SUCCESS" };
-    }, { timeout: 20000 });
+    }, { timeout: 15000 });
   } catch (error) {
+    if (error instanceof StaleGenerationError || error instanceof ProposalAttemptsExhaustedError) {
+      const status = error instanceof StaleGenerationError ? "CANCELLED" : "FAILED";
+      await prisma.jobRun.updateMany({ where: { id, status: "RUNNING", attemptsStarted: claim.attempt }, data: {
+        status, leaseExpiresAt: null, nextRetryAt: null, finishedAt: new Date(),
+        error: error instanceof StaleGenerationError ? error.message : `Proposal invalid after ${error.attempts} attempts: ${error.issues.map(issue => `${issue.code}: ${issue.message}`).join("; ").slice(0, 3000)}`,
+      } });
+      return { status };
+    }
     const retry = claim.attempt! < PLAN_ATTEMPTS;
     await prisma.jobRun.updateMany({ where: { id, status: "RUNNING", attemptsStarted: claim.attempt }, data: {
       status: retry ? "PENDING" : "FAILED", leaseExpiresAt: null,

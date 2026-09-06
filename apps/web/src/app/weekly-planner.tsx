@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PlanSportSchema, WeeklyGoalsSchema, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan } from "@pkg/shared";
 
@@ -16,7 +17,7 @@ function PlanDetails({ saved }: { saved: SavedWeeklyPlan }) {
       <p><strong>{plan.totalMinutes} planned minutes</strong> · {plan.mode === "STARTER" ? "Optional starter schedule" : plan.mode === "CUSTOM" ? "Custom weekly goals" : "Based on recent training"}</p>
       {plan.mode === "CUSTOM" && <p className="text-sm">Uses your saved custom goals. Blank sports use recent training history.</p>}
       {plan.mode !== "STARTER" && hasSparseHistory && <p className="text-sm">Some sports have limited recorded history. Review the assumptions below.</p>}
-      {targetTotalMinutes > plan.totalMinutes && <p role="status" className="text-sm">Goal total: {targetTotalMinutes} min. {targetTotalMinutes - plan.totalMinutes} min could not be scheduled within the scheduling constraints.</p>}
+      {targetTotalMinutes !== plan.totalMinutes && <p role="status" className="text-sm">Goal total: {targetTotalMinutes} min. Planned: {formatMinutes(plan.totalMinutes)} min. Review the explanation below for differences; your saved goals are unchanged.</p>}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <caption className="mb-2 text-left">Minutes by sport</caption>
@@ -38,7 +39,7 @@ function PlanDetails({ saved }: { saved: SavedWeeklyPlan }) {
           ))}</tbody>
         </table>
       </div>
-      <details className="rounded border p-3" open={plan.mode === "STARTER" || hasSparseHistory}>
+      <details className="rounded border p-3" open={plan.totalMinutes === 0 || plan.mode === "STARTER" || hasSparseHistory}>
         <summary className="cursor-pointer font-medium">How this plan was chosen</summary>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">{plan.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul>
         <p className="mt-3 text-xs">History snapshot: {formatPlanDate(plan.sourceGeneratedAt)}. Regenerate after syncing if you want to use updated history.</p>
@@ -70,7 +71,11 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
         if (!response.ok) throw new Error(state.error ?? "Could not check generation status.");
         if (controller.signal.aborted) return;
         setPlannerState(state);
-        if (state.generation?.status === "SUCCESS") { setMessage("Weekly plan saved."); onPlanSaved(); return; }
+        if (state.generation?.status === "SUCCESS") {
+          const latest = state.nextPlan?.updatedAt > (state.currentPlan?.updatedAt ?? "") ? state.nextPlan : state.currentPlan;
+          setMessage(latest?.content.totalMinutes === 0 ? "Generation finished, but no workouts could be scheduled. Review availability and the explanation below." : "Weekly plan saved.");
+          onPlanSaved(); return;
+        }
         if (["FAILED", "CANCELLED"].includes(state.generation?.status)) { setError(state.generation.error ?? "Generation did not complete."); return; }
       } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Could not check generation status."); }
       if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 2000);
@@ -136,6 +141,7 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
     <section className="space-y-4 rounded-lg border p-6" aria-labelledby="planner-heading">
       <h2 id="planner-heading" className="text-xl font-semibold">Weekly plan</h2>
       <p className="text-sm">Generate an easy swim, bike, and run schedule for the week starting {formatPlanDate(plannerState.nextWeekStart)} using your profile timezone and availability.</p>
+      <p className="text-sm">Every day is available by default. <Link href="/settings/availability" className="underline">Adjust availability</Link> to exclude days, limit time, or change pool access. The planner still reserves a rest day.</p>
       <form onSubmit={event => { event.preventDefault(); void saveGoals(); }} className="space-y-3 rounded border p-4">
         <fieldset disabled={saving || busy} className="space-y-3">
           <legend className="font-medium">Weekly goal minutes</legend>
@@ -168,11 +174,11 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
       {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}
       {!plannerState.currentPlan && !plannerState.nextPlan && <p>No plan saved yet. Your saved goals and recent completed weeks will set the workout targets.</p>}
-      {plannerState.currentPlan && <details className="rounded border p-4">
+      {plannerState.currentPlan && <details className="rounded border p-4" open={plannerState.currentPlan.content.totalMinutes === 0}>
         <summary className="cursor-pointer font-medium">This week&apos;s plan: {formatPlanDate(plannerState.currentPlan.content.weekStart)}</summary>
         <PlanDetails saved={plannerState.currentPlan} />
       </details>}
-      {plannerState.nextPlan && <details className="rounded border p-4">
+      {plannerState.nextPlan && <details className="rounded border p-4" open={plannerState.nextPlan.content.totalMinutes === 0}>
         <summary className="cursor-pointer font-medium">Next week&apos;s plan: {formatPlanDate(plannerState.nextPlan.content.weekStart)}</summary>
         <PlanDetails saved={plannerState.nextPlan} />
       </details>}
