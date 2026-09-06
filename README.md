@@ -3,6 +3,11 @@
 npm workspace monorepo: Next.js web app, BullMQ worker, Prisma/Postgres,
 and shared Zod schemas. Web and worker communicate through Redis/BullMQ.
 
+The [PlanningContext checkpoint](docs/planning-context.md) adds athlete profiles,
+race demands, evidence history, availability, and restrictions for future planning.
+See the [seeded context example](docs/planning-context.example.json). AI calls and
+configuration screens are not implemented; the existing v1 planner remains available.
+
 ## Strava connection setup
 
 OAuth and token refresh are implemented. A real connection requires your own
@@ -154,6 +159,31 @@ normal local use needs no prefix setting.
 API behavior follows the [Strava activity reference](https://developers.strava.com/docs/reference/#api-Activities-getLoggedInAthleteActivities)
 and [rate-limit documentation](https://developers.strava.com/docs/rate-limits/).
 
+## Training calendar
+
+The dashboard opens with a Monday–Sunday month calendar. Green entries are completed
+activities from Strava; blue entries are saved planned workouts. Cards show a short
+title and total duration. Click a card for the workout steps or activity details;
+Escape or the close button dismisses the dialog. Completed activities link to Strava.
+
+Use the month picker, arrows, or Today button to navigate. The left column shows
+separate completed/planned weekly totals. Dates use UTC, consistent with summaries
+and saved plans. On phones, scroll horizontally inside the calendar.
+
+The session-protected `GET /api/calendar?month=YYYY-MM` loads all saved activities
+and weekly plans in the complete weeks touching that month, including historical
+plans. It does not use the sync dashboard's 30-activity limit. Sync completion and
+successful generation refresh the visible calendar. No new Strava API calls or
+database migration are required for this view.
+
+Completed and planned entries are deliberately separate: an activity does not
+automatically mark a planned workout as fulfilled. Open **Plan settings & weekly
+goals** below the calendar to save goals and generate next week's plan. Open
+**Training summaries** for the detailed volume table.
+
+Run `npm run test:calendar` for calendar ranges, account isolation, full activity
+loading, and historical plan coverage against an isolated database.
+
 ## Weekly training summaries
 
 The dashboard shows the current week and the preceding three calendar weeks.
@@ -172,7 +202,7 @@ weeks as zero, and excludes the partial current week. These metrics reflect
 stored activities, so incomplete syncs can produce incomplete totals.
 
 Summaries read **all** activities in the window from Postgres, independently of
-the 30-row recent-activity list. They update through the existing authenticated
+the sync endpoint's 30-row activity preview. They update through the existing authenticated
 sync-status endpoint whenever the dashboard polls or the page is reloaded.
 No migration or new Strava requests are needed for summaries.
 
@@ -332,6 +362,8 @@ restart `npm run dev` or run its `build:watch` script in another terminal.
 
 See [the MVP checklist](docs/mvp-status.md) for completed and pending milestones.
 See [the product vision](docs/product-vision.md) for scope and future direction.
+See [the detailed design document](docs/design.md) for current data flows, planning
+rules, failure behavior, proposed next steps, and a decision register for review.
 See [the code review guide](docs/code-review.md) for findings, a file-by-file map,
 and a suggested order for your own review. Review `src` files; `dist` is generated.
 

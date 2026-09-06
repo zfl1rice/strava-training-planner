@@ -27,6 +27,8 @@
     "test:training": "npm run build:packages && node scripts/test-strava.mjs training",
     "test:planner": "npm run build:packages && node scripts/test-strava.mjs planner",
     "test:health": "npm run build:packages && node scripts/test-strava.mjs health",
+    "test:calendar": "npm run build:packages && node scripts/test-strava.mjs calendar",
+    "test:planning": "npm run build:packages && node scripts/test-strava.mjs planning",
     "db:generate": "npm exec --workspace @pkg/db -- prisma generate",
     "db:deploy": "npm exec --workspace @pkg/db -- prisma migrate deploy"
   },

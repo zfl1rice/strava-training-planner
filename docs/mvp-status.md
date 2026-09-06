@@ -1,5 +1,22 @@
 # Pre-AI MVP status
 
+The [detailed design draft](design.md) documents current behavior and open decisions.
+Proposals in that document do not change the implementation status below.
+
+## September 6 PlanningContext checkpoint
+
+- [x] Additive profile, timezone, race, evidence-history, and workout-state storage.
+- [x] Shared schemas and `buildPlanningContext`, with local summaries/date overrides.
+- [x] Manual baseline precedence, custom zone preservation, and explicit missing evidence.
+- [x] Seeded readable context and focused integration tests.
+- [ ] Configuration UI, fitness calculations, structured AI workouts, and OpenAI calls.
+
+See [the checkpoint review guide](planning-context.md) and [seeded JSON](planning-context.example.json).
+The fixed UTC deterministic planner remains available; protected workout metadata
+now prevents it from overwriting locked/completed workouts.
+
+## Original MVP checklist
+
 - [x] Typed PingJob: shared schema, web enqueue, Redis/BullMQ, worker validation
 - [x] Strava OAuth and token refresh (implementation and simulated-provider integration tests)
 - [x] Verify a real Strava account connection after configuring local API credentials
@@ -13,6 +30,7 @@
 - [x] Decision 2: prevent plan generation and activity sync from overlapping
 - [x] Decision 3: disable Ping diagnostics by default; explicitly enable for testing
 - [x] Readability review: focused cleanup, terminal retry-message fix, and CR file table
+- [x] Month calendar: green completed activities, blue plans, click-to-open details
 - [ ] Athlete/race profile: race type/date, experience, weekly availability, rest day,
   sport days, and basic scheduling constraints
 - [ ] Extend the deterministic planner to use the profile, time until race, and
@@ -193,3 +211,23 @@ AI, calendar integration, advanced training models, and UI polish are deferred.
 - All 84 tests, workspace typechecks, web lint, production build, and compiled
   web-to-worker Ping smoke pass. One initial sync-test timeout did not reproduce
   on the next two runs; the guide records it as an unresolved intermittent issue.
+
+## Training calendar UI
+
+- Calendar is the main view, with Monday–Sunday columns, month navigation, Today,
+  current-day highlighting, and separate weekly completed/planned totals.
+- Green Strava activities and blue planned workouts show concise duration/title
+  cards. Details open in a native dialog with keyboard dismissal and focus return.
+- All saved records in the visible weeks are loaded from Postgres through an
+  authenticated, uncached calendar endpoint, independently of the 30-row preview.
+- Historical plans appear when navigating back. Completed and planned workouts
+  remain separate; automatic matching is not implemented.
+- Sync completion and generation refresh the calendar. Goals and summaries are
+  still available in collapsible sections below it.
+- Five calendar tests plus 27 planner and 9 summary regressions pass (41 tests),
+  along with workspace typechecks, web lint, and the production build.
+- Headless Chrome checks with isolated fixtures verified colors/entries, hidden
+  steps, dialog click/Escape/focus behavior, month navigation, generation refresh,
+  mobile overflow containment, and request failure/retry. No browser runtime errors.
+- Desktop/mobile screenshots inspected. No new runtime dependency, migration,
+  change to planning rules, or live Strava request was required.

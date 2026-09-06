@@ -37,21 +37,22 @@ export default async function Home({ searchParams }: {
   const message = params.strava ? messages[params.strava] : undefined;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-8 px-6 py-16">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold">Triathlon training planner</h1>
-        <p>Connect Strava to get started with your swim, bike, and run training.</p>
+    <main className="mx-auto max-w-[1680px] space-y-5 px-4 py-6 sm:px-8">
+      <header className="space-y-1 border-b border-slate-200 pb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Swim · Bike · Run</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Training planner</h1>
+        <p className="text-sm text-slate-500">Your training history and the week ahead, in one place.</p>
       </header>
       {message && <p role="status" className="rounded border p-4">{message}</p>}
       {storageError && <p role="alert">Connection status is unavailable. Check that Postgres is running.</p>}
-      <section className="space-y-4 rounded-lg border p-6">
-        <h2 className="text-xl font-semibold">Strava</h2>
+      <section className="flex flex-wrap items-center justify-between gap-4 text-sm">
+        <h2 className="font-semibold">Strava</h2>
         {connection ? (
-          <p>Connected{user?.name ? ` as ${user.name}` : ""}. Athlete ID: {connection.athleteId}.</p>
+          <p className="mr-auto text-emerald-700">● Connected{user?.name ? ` as ${user.name}` : ""}</p>
         ) : <p>Strava is not connected.</p>}
         {!configured && <p>Strava connection is not configured yet. Follow the setup instructions in the project README.</p>}
         <form method="post" action="/api/strava/connect">
-          <button disabled={!configured || storageError} className="rounded bg-orange-600 px-5 py-3 font-medium text-white disabled:opacity-50">
+          <button disabled={!configured || storageError} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-medium hover:bg-slate-50 disabled:opacity-50">
             {connection ? "Reconnect Strava" : "Connect Strava"}
           </button>
         </form>

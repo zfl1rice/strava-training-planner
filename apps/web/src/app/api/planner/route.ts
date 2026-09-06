@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateAndSaveWeeklyPlan, getPlannerState, saveWeeklyGoals, PlanSyncInProgressError } from "@pkg/db";
+import { generateAndSaveWeeklyPlan, getPlannerState, saveWeeklyGoals, PlanSyncInProgressError, PlanHasProtectedWorkoutsError } from "@pkg/db";
 import { WeeklyGoalsSchema } from "@pkg/shared";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     await generateAndSaveWeeklyPlan(user.id);
     return json(await getPlannerState(user.id));
   } catch (error) {
-    if (error instanceof PlanSyncInProgressError) return json({ error: error.message }, 409);
+    if (error instanceof PlanSyncInProgressError || error instanceof PlanHasProtectedWorkoutsError) return json({ error: error.message }, 409);
     return json({ error: "Could not generate your weekly plan. Please try again." }, 503);
   }
 }

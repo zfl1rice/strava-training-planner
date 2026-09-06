@@ -4,7 +4,6 @@ import { useState } from "react";
 import { PlanSportSchema, WeeklyGoalsSchema, WORKOUT_TEMPLATES, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan } from "@pkg/shared";
 
 const formatPlanDate = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-const formatWorkoutDate = (value: string) => new Date(value + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
 const formatMinutes = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 1 });
 const goalsToFormFields = (goals: WeeklyGoals) => ({ RUN: goals.RUN?.toString() ?? "", BIKE: goals.BIKE?.toString() ?? "", SWIM: goals.SWIM?.toString() ?? "" });
 
@@ -39,19 +38,6 @@ function PlanDetails({ saved }: { saved: SavedWeeklyPlan }) {
           ))}</tbody>
         </table>
       </div>
-      <ol className="space-y-3">
-        {plan.days.map(day => (
-          <li key={day.date} className="rounded border p-4">
-            <h4 className="font-medium">{formatWorkoutDate(day.date)}: {day.title}</h4>
-            {day.kind === "WORKOUT" && <>
-              <p className="mt-1 text-sm">{day.sport} · {day.durationMinutes} min · {day.effort.toLowerCase()} effort{day.optional ? " · optional" : ""}</p>
-              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">{day.steps.map(step => (
-                <li key={step.label}>{step.label}: {step.minutes} min. {step.instructions}</li>
-              ))}</ol>
-            </>}
-          </li>
-        ))}
-      </ol>
       <details className="rounded border p-3" open={plan.mode === "STARTER" || hasSparseHistory}>
         <summary className="cursor-pointer font-medium">How this plan was chosen</summary>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">{plan.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul>
@@ -61,7 +47,9 @@ function PlanDetails({ saved }: { saved: SavedWeeklyPlan }) {
   );
 }
 
-export default function WeeklyPlanner({ initialData, syncActive }: { initialData: PlannerState; syncActive: boolean }) {
+export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: {
+  initialData: PlannerState; syncActive: boolean; onPlanSaved: () => void;
+}) {
   const [plannerState, setPlannerState] = useState(initialData);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -114,6 +102,7 @@ export default function WeeklyPlanner({ initialData, syncActive }: { initialData
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not generate your plan.");
       setPlannerState(result);
+      onPlanSaved();
       setMessage("Weekly plan saved.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Could not generate your plan.");
@@ -156,11 +145,11 @@ export default function WeeklyPlanner({ initialData, syncActive }: { initialData
       {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}
       {!plannerState.currentPlan && !plannerState.nextPlan && <p>No plan saved yet. Your saved goals and recent completed weeks will set the workout targets.</p>}
-      {plannerState.currentPlan && <details open={!plannerState.nextPlan} className="rounded border p-4">
+      {plannerState.currentPlan && <details className="rounded border p-4">
         <summary className="cursor-pointer font-medium">This week&apos;s plan: {formatPlanDate(plannerState.currentPlan.content.weekStart)}</summary>
         <PlanDetails saved={plannerState.currentPlan} />
       </details>}
-      {plannerState.nextPlan && <details open className="rounded border p-4">
+      {plannerState.nextPlan && <details className="rounded border p-4">
         <summary className="cursor-pointer font-medium">Next week&apos;s plan: {formatPlanDate(plannerState.nextPlan.content.weekStart)}</summary>
         <PlanDetails saved={plannerState.nextPlan} />
       </details>}

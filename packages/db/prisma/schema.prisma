@@ -12,6 +12,10 @@ model User {
   email      String?    @unique
   name       String?
   role       Role       @default(USER)
+  timeZone   String     @default("UTC")
+  athleteProfile AthleteProfile?
+  raceGoals RaceGoal[]
+  performanceEvidence PerformanceEvidence[]
 
   activities Activity[]
   jobRuns    JobRun[]
@@ -35,10 +39,52 @@ model WeeklyPlan {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   weekStart DateTime
   content   Json
+  workoutStates Json @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, weekStart])
+}
+
+// Versioned domain JSON avoids a table for every profile setting. Evidence and
+// races are relational because history, dates, and ownership need direct queries.
+model AthleteProfile {
+  userId Int @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content Json
+  updatedAt DateTime @updatedAt
+}
+
+model RaceGoal {
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date DateTime @db.Date
+  importance Int
+  content Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+model PerformanceEvidence {
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sport ActivityType
+  metric String
+  benchmark Float
+  value Float
+  occurredAt DateTime
+  sourceActivityId Int?
+  sourceActivity Activity? @relation(fields: [sourceActivityId], references: [id], onDelete: SetNull)
+  source String
+  isPersonalRecord Boolean
+  methodVersion String
+  createdAt DateTime @default(now())
+
+  @@index([userId, sport, metric, benchmark, occurredAt], map: "PerformanceEvidence_user_benchmark_date_idx")
 }
 
 model StravaConnection {
@@ -91,6 +137,7 @@ model Activity {
 
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  performanceEvidence PerformanceEvidence[]
 
   @@index([userId, startedAt])
 }

@@ -1,0 +1,785 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-06T12:00:00.000Z",
+  "athlete": {
+    "id": 12,
+    "timeZone": "America/Chicago"
+  },
+  "targetWeek": {
+    "startDate": "2026-09-07",
+    "endDate": "2026-09-14"
+  },
+  "goals": {
+    "RUN": null,
+    "BIKE": null,
+    "SWIM": null
+  },
+  "fitness": {
+    "definitions": {
+      "cycling": {
+        "baseline": {
+          "manual": {
+            "value": 250,
+            "recordedAt": "2026-09-01T12:00:00.000Z",
+            "evidenceIds": [],
+            "explanation": null
+          },
+          "estimate": null
+        },
+        "zones": {
+          "mode": "DERIVED"
+        }
+      },
+      "running": {
+        "baseline": {
+          "manual": null,
+          "estimate": null
+        },
+        "zones": {
+          "mode": "DERIVED"
+        }
+      },
+      "swimming": {
+        "baseline": {
+          "manual": {
+            "value": 100,
+            "recordedAt": "2026-09-01T12:00:00.000Z",
+            "evidenceIds": [],
+            "explanation": null
+          },
+          "estimate": null
+        },
+        "zones": {
+          "mode": "DERIVED"
+        },
+        "paceUnit": "SECONDS_PER_100YD"
+      }
+    },
+    "effective": {
+      "cycling": {
+        "value": 250,
+        "source": "MANUAL",
+        "unit": "WATTS",
+        "recordedAt": "2026-09-01T12:00:00.000Z"
+      },
+      "running": {
+        "value": null,
+        "source": "MISSING",
+        "unit": "BPM",
+        "recordedAt": null
+      },
+      "swimming": {
+        "value": 100,
+        "source": "MANUAL",
+        "unit": "SECONDS_PER_100YD",
+        "recordedAt": "2026-09-01T12:00:00.000Z"
+      }
+    }
+  },
+  "performanceProfile": {
+    "cycling": [
+      {
+        "sport": "BIKE",
+        "key": "SPRINT",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "BIKE",
+        "key": "SHORT_ANAEROBIC",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "BIKE",
+        "key": "TWO_TO_FIVE_MINUTE_POWER",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "BIKE",
+        "key": "VO2_DURATION",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "BIKE",
+        "key": "THRESHOLD",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "BIKE",
+        "key": "LONG_ENDURANCE",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      }
+    ],
+    "running": [
+      {
+        "sport": "RUN",
+        "key": "SPEED",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "RUN",
+        "key": "SHORT_AEROBIC",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "RUN",
+        "key": "FIVE_TEN_K",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "RUN",
+        "key": "THRESHOLD",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "RUN",
+        "key": "LONG_ENDURANCE",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      }
+    ],
+    "swimming": [
+      {
+        "sport": "SWIM",
+        "key": "SHORT_SPEED",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "SWIM",
+        "key": "THRESHOLD_PACE",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      },
+      {
+        "sport": "SWIM",
+        "key": "SUSTAINED_ENDURANCE",
+        "score": null,
+        "confidence": "INSUFFICIENT_EVIDENCE",
+        "trend": "UNKNOWN",
+        "evidenceIds": [],
+        "updatedAt": null,
+        "methodVersion": null
+      }
+    ],
+    "evidence": [
+      {
+        "id": 115,
+        "observation": {
+          "sport": "BIKE",
+          "metric": "POWER_DURATION",
+          "benchmark": 120,
+          "value": 350,
+          "occurredAt": "2026-09-01T12:00:00.000Z",
+          "sourceActivityId": null,
+          "source": "MEASURED",
+          "isPersonalRecord": true,
+          "methodVersion": "test-v1"
+        }
+      }
+    ],
+    "historyRecordCount": 1,
+    "evidenceTruncated": false
+  },
+  "races": [
+    {
+      "id": 5,
+      "goal": {
+        "name": "Example 70.3",
+        "eventType": "CUSTOM",
+        "sports": [
+          "RUN",
+          "BIKE",
+          "SWIM"
+        ],
+        "date": "2027-01-10",
+        "distanceMeters": null,
+        "expectedDurationSeconds": 120,
+        "performanceGoal": null,
+        "importance": 95,
+        "demandProfile": null
+      }
+    }
+  ],
+  "recentTraining": {
+    "timeZone": "America/Chicago",
+    "generatedAt": "2026-09-06T12:00:00.000Z",
+    "weeks": [
+      {
+        "weekStart": "2026-08-31",
+        "weekEnd": "2026-09-07",
+        "isCurrentWeek": true,
+        "run": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "bike": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "swim": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "other": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "totalDurationSeconds": 0,
+        "totalDurationMinutes": 0
+      },
+      {
+        "weekStart": "2026-08-24",
+        "weekEnd": "2026-08-31",
+        "isCurrentWeek": false,
+        "run": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "bike": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "swim": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "other": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "totalDurationSeconds": 0,
+        "totalDurationMinutes": 0
+      },
+      {
+        "weekStart": "2026-08-17",
+        "weekEnd": "2026-08-24",
+        "isCurrentWeek": false,
+        "run": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "bike": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "swim": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "other": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "totalDurationSeconds": 0,
+        "totalDurationMinutes": 0
+      },
+      {
+        "weekStart": "2026-08-10",
+        "weekEnd": "2026-08-17",
+        "isCurrentWeek": false,
+        "run": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "bike": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "swim": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "other": {
+          "activityCount": 0,
+          "durationSeconds": 0,
+          "durationMinutes": 0,
+          "distanceMeters": 0,
+          "missingDistanceCount": 0
+        },
+        "totalDurationSeconds": 0,
+        "totalDurationMinutes": 0
+      }
+    ],
+    "completedWeekAverageMinutes": 0,
+    "completedWeekCount": 3
+  },
+  "availability": {
+    "recurring": [
+      {
+        "weekday": 0,
+        "settings": {
+          "availableMinutes": 0,
+          "maxSessions": 0,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        }
+      },
+      {
+        "weekday": 1,
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        }
+      },
+      {
+        "weekday": 2,
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        }
+      },
+      {
+        "weekday": 3,
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        }
+      },
+      {
+        "weekday": 4,
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        }
+      },
+      {
+        "weekday": 5,
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        }
+      },
+      {
+        "weekday": 6,
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        }
+      }
+    ],
+    "days": [
+      {
+        "date": "2026-09-07",
+        "source": "RECURRING",
+        "settings": {
+          "availableMinutes": 0,
+          "maxSessions": 0,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        },
+        "note": null
+      },
+      {
+        "date": "2026-09-08",
+        "source": "RECURRING",
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        },
+        "note": null
+      },
+      {
+        "date": "2026-09-09",
+        "source": "RECURRING",
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        },
+        "note": null
+      },
+      {
+        "date": "2026-09-10",
+        "source": "RECURRING",
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        },
+        "note": null
+      },
+      {
+        "date": "2026-09-11",
+        "source": "RECURRING",
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        },
+        "note": null
+      },
+      {
+        "date": "2026-09-12",
+        "source": "RECURRING",
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        },
+        "note": null
+      },
+      {
+        "date": "2026-09-13",
+        "source": "RECURRING",
+        "settings": {
+          "availableMinutes": 60,
+          "maxSessions": 2,
+          "allowedSports": [
+            "RUN",
+            "BIKE",
+            "SWIM"
+          ],
+          "poolAccess": true
+        },
+        "note": null
+      }
+    ]
+  },
+  "restrictions": [],
+  "existingPlans": [
+    {
+      "id": 3,
+      "updatedAt": "2026-09-06T07:57:53.713Z",
+      "content": {
+        "version": 1,
+        "timeZone": "UTC",
+        "weekStart": "2026-09-07T00:00:00.000Z",
+        "weekEnd": "2026-09-14T00:00:00.000Z",
+        "sourceGeneratedAt": "2026-09-06T12:00:00.000Z",
+        "sourceWeekStarts": [
+          "2026-08-24T00:00:00.000Z",
+          "2026-08-17T00:00:00.000Z",
+          "2026-08-10T00:00:00.000Z"
+        ],
+        "mode": "STARTER",
+        "assumptions": [
+          "Based on the previous three completed UTC weeks; the unfinished current week and other activity types do not increase the budget.",
+          "One session per day, Monday rest, and easy efforts only. Durations include warm-up and cool-down.",
+          "No completed-week swim, bike, or run volume was found. This generic optional starter schedule is not an estimate of your fitness. Skip sessions that do not suit your experience.",
+          "No successful activity sync is recorded yet. Sync Strava and regenerate to use your recent training history."
+        ],
+        "goals": {
+          "RUN": null,
+          "BIKE": null,
+          "SWIM": null
+        },
+        "budgets": {
+          "RUN": {
+            "averageMinutes": 0,
+            "activeWeeks": 0,
+            "targetMinutes": 10,
+            "plannedMinutes": 10
+          },
+          "BIKE": {
+            "averageMinutes": 0,
+            "activeWeeks": 0,
+            "targetMinutes": 20,
+            "plannedMinutes": 20
+          },
+          "SWIM": {
+            "averageMinutes": 0,
+            "activeWeeks": 0,
+            "targetMinutes": 10,
+            "plannedMinutes": 10
+          }
+        },
+        "days": [
+          {
+            "kind": "REST",
+            "date": "2026-09-07",
+            "title": "Rest day",
+            "durationMinutes": 0
+          },
+          {
+            "kind": "WORKOUT",
+            "date": "2026-09-08",
+            "templateId": "run-easy",
+            "sport": "RUN",
+            "title": "Easy run",
+            "effort": "EASY",
+            "durationMinutes": 10,
+            "optional": true,
+            "steps": [
+              {
+                "label": "Warm-up",
+                "minutes": 2,
+                "instructions": "Walk or jog gently."
+              },
+              {
+                "label": "Main session",
+                "minutes": 6,
+                "instructions": "Run at a relaxed, conversational effort. Take walking breaks as needed."
+              },
+              {
+                "label": "Cool-down",
+                "minutes": 2,
+                "instructions": "Walk or jog gently."
+              }
+            ]
+          },
+          {
+            "kind": "WORKOUT",
+            "date": "2026-09-09",
+            "templateId": "swim-technique",
+            "sport": "SWIM",
+            "title": "Easy technique swim",
+            "effort": "EASY",
+            "durationMinutes": 10,
+            "optional": true,
+            "steps": [
+              {
+                "label": "Warm-up",
+                "minutes": 2,
+                "instructions": "Swim gently using a familiar stroke."
+              },
+              {
+                "label": "Main session",
+                "minutes": 6,
+                "instructions": "Swim short, easy lengths, focusing on relaxed breathing and smooth strokes. Rest between lengths as needed."
+              },
+              {
+                "label": "Cool-down",
+                "minutes": 2,
+                "instructions": "Finish with gentle lengths."
+              }
+            ]
+          },
+          {
+            "kind": "WORKOUT",
+            "date": "2026-09-10",
+            "templateId": "bike-endurance",
+            "sport": "BIKE",
+            "title": "Easy endurance ride",
+            "effort": "EASY",
+            "durationMinutes": 20,
+            "optional": true,
+            "steps": [
+              {
+                "label": "Warm-up",
+                "minutes": 3,
+                "instructions": "Pedal gently in an easy gear."
+              },
+              {
+                "label": "Main session",
+                "minutes": 14,
+                "instructions": "Ride at a comfortable effort with relaxed, steady pedaling."
+              },
+              {
+                "label": "Cool-down",
+                "minutes": 3,
+                "instructions": "Reduce the effort and pedal gently."
+              }
+            ]
+          },
+          {
+            "kind": "REST",
+            "date": "2026-09-11",
+            "title": "Rest day",
+            "durationMinutes": 0
+          },
+          {
+            "kind": "REST",
+            "date": "2026-09-12",
+            "title": "Rest day",
+            "durationMinutes": 0
+          },
+          {
+            "kind": "REST",
+            "date": "2026-09-13",
+            "title": "Rest day",
+            "durationMinutes": 0
+          }
+        ],
+        "totalMinutes": 40
+      },
+      "workoutStates": []
+    }
+  ],
+  "dataQuality": {
+    "lastSuccessfulSyncAt": null,
+    "syncInProgress": false,
+    "latestSyncStatus": null,
+    "notes": [
+      "Existing v1 plans retain their original UTC dates and fixed scheduling policy; they are not rescheduled by this context builder.",
+      "Derived zone formulas, capability scoring, and baseline estimation are not calculated in this milestone.",
+      "No successful activity sync is recorded; training history may be incomplete."
+    ]
+  }
+}

@@ -1,5 +1,13 @@
 # Code review and source guide
 
+## September 6 PlanningContext foundation
+
+Start with the [checkpoint and new-file review map](planning-context.md#review-map)
+and [seeded output](planning-context.example.json). This pass adds three domain tables,
+shared planning schemas, local-date context construction, and protected v1 workout
+metadata. The detailed September 5 file map below remains the guide to existing code.
+No AI calls or profile configuration UI have been added.
+
 Reviewed September 4, 2026; automatic recovery, sync/plan coordination, and opt-in
 Ping diagnostics implemented September 5. See [the product vision](product-vision.md)
 for the expanded MVP scope provided after this review.
@@ -194,12 +202,16 @@ Failure scenarios below are identified from control flow unless a test is cited.
 
 Paths below are relative to the repository root (the inner `strava-training-planner`
 directory containing `package.json`). Review source, not generated output.
+Calendar UI follow-up: the dashboard now displays completed and planned training in
+a month grid. Review the calendar range/storage boundary and the dialog/fetch state
+in the new files below. The calendar is separate from planned-vs-actual matching.
 
 ### Shared package
 
 | File | Responsibility and review focus | Your CR notes |
 | --- | --- | --- |
 | [packages/shared/src/planner.ts](../packages/shared/src/planner.ts) | Workout templates, goal/plan schemas, schedule, generation, and snapshot validation. Highest priority for training-policy review. | |
+| [packages/shared/src/calendar.ts](../packages/shared/src/calendar.ts) | Validates month input, calculates full UTC calendar weeks, and defines the calendar response contract. | |
 | [packages/shared/src/training.ts](../packages/shared/src/training.ts) | Pure UTC weekly aggregation and date helpers. Check boundaries, units, and missing-history semantics. | |
 | [packages/shared/src/jobSchemas.ts](../packages/shared/src/jobSchemas.ts) | Zod contracts for Ping and sync job payloads. Sync carries only a persistent run ID. | |
 | [packages/shared/src/queue.ts](../packages/shared/src/queue.ts) | Queue/job names, history window, attempt count, deterministic sync job IDs. Coordinate producer/consumer edits here. | |
@@ -220,6 +232,7 @@ directory containing `package.json`). Review source, not generated output.
 | [packages/db/src/training.ts](../packages/db/src/training.ts) | Loads all relevant user activities for the pure summary calculator; accepts the caller's transaction so plan reads stay under its lock. | |
 | [packages/db/src/training-lock.ts](../packages/db/src/training-lock.ts) | Shared per-user advisory lock and bounded wait for sync creation and plan generation. Internal DB helper, not a cross-app lock service. | |
 | [packages/db/src/planner.ts](../packages/db/src/planner.ts) | Per-user goals, current/next plan loading, transactional sync guard, and one-plan-per-week upsert. | |
+| [packages/db/src/calendar.ts](../packages/db/src/calendar.ts) | Loads every activity and saved plan in the visible weeks for the session user; serializes dates/IDs and validates plan snapshots. | |
 | [packages/db/src/index.ts](../packages/db/src/index.ts) | Public DB-package exports. | |
 | [packages/db/prisma/schema.prisma](../packages/db/prisma/schema.prisma) | Tables, enums, ownership relations, cascade rules, and uniqueness. Note nullable email, unique Strava activity ID, and unique user/week plan. Unused load/role/job-enum fields are retained to avoid gratuitous migrations. | |
 | [packages/db/prisma/migrations/20260108191410_init/migration.sql](../packages/db/prisma/migrations/20260108191410_init/migration.sql) | Initial users, activities, jobs, enums, and indexes. Historical: do not edit applied migrations. | |
@@ -248,9 +261,10 @@ directory containing `package.json`). Review source, not generated output.
 | File | Responsibility and review focus | Your CR notes |
 | --- | --- | --- |
 | [apps/web/src/app/page.tsx](../apps/web/src/app/page.tsx) | Server-rendered entry: resolves session, connection, activity data, planner data, and OAuth status messages. | |
-| [apps/web/src/app/activity-dashboard.tsx](../apps/web/src/app/activity-dashboard.tsx) | Sync button, bounded progress polling, recent activity list; composes summaries and planner. | |
+| [apps/web/src/app/activity-dashboard.tsx](../apps/web/src/app/activity-dashboard.tsx) | Sync button, bounded polling, calendar refresh after sync/generation, and collapsible planner/summary controls. | |
+| [apps/web/src/app/training-calendar.tsx](../apps/web/src/app/training-calendar.tsx) | Month grid, completed/planned cards, weekly totals, navigation, cancellable fetching/retry, and accessible workout detail dialog. | |
 | [apps/web/src/app/training-summary.tsx](../apps/web/src/app/training-summary.tsx) | Weekly cards/table, units, missing-distance presentation. | |
-| [apps/web/src/app/weekly-planner.tsx](../apps/web/src/app/weekly-planner.tsx) | Goal form, save/generate calls, saved plan display, assumptions, and unscheduled totals. Main UI review target. | |
+| [apps/web/src/app/weekly-planner.tsx](../apps/web/src/app/weekly-planner.tsx) | Goal form, save/generate calls, assumptions and unscheduled totals; tells the dashboard when generation succeeds. Workout steps now appear through the calendar dialog. | |
 | [apps/web/src/app/layout.tsx](../apps/web/src/app/layout.tsx) | HTML shell, metadata, Google font setup. Builds need font access unless cached. | |
 | [apps/web/src/app/globals.css](../apps/web/src/app/globals.css) | Tailwind import, theme variables, base styling. | |
 | [apps/web/src/app/favicon.ico](../apps/web/src/app/favicon.ico) | Static browser icon; low review priority. | |
@@ -261,6 +275,7 @@ directory containing `package.json`). Review source, not generated output.
 | [apps/web/src/app/api/strava/refresh/route.ts](../apps/web/src/app/api/strava/refresh/route.ts) | Authenticated token-validity/refresh check; returns metadata, never tokens. | |
 | [apps/web/src/app/api/strava/sync/route.ts](../apps/web/src/app/api/strava/sync/route.ts) | Authenticated status GET and origin-checked enqueue POST. Review DB/queue failure ordering. | |
 | [apps/web/src/app/api/planner/route.ts](../apps/web/src/app/api/planner/route.ts) | Authenticated plan GET, generate POST, strict goals PATCH. User identity always comes from session. | |
+| [apps/web/src/app/api/calendar/route.ts](../apps/web/src/app/api/calendar/route.ts) | Session-protected month GET; validates the bounded date range and returns uncached, user-scoped records. | |
 | [apps/web/src/app/api/postgres_health/route.ts](../apps/web/src/app/api/postgres_health/route.ts) | Safe, uncached Postgres probe JSON and status. | |
 | [apps/web/src/app/api/redis_health/route.ts](../apps/web/src/app/api/redis_health/route.ts) | Safe, uncached Redis probe JSON and status. | |
 | [apps/web/src/lib/strava-auth.ts](../apps/web/src/lib/strava-auth.ts) | Config checks, cookie options, token generation/hashing, constant-time state comparison, session lookup. | |
@@ -288,10 +303,12 @@ directory containing `package.json`). Review source, not generated output.
 | [tests/training-summary.test.mjs](../tests/training-summary.test.mjs) | UTC/date/aggregation edge cases and full-window DB/user filtering. | |
 | [tests/planner.test.mjs](../tests/planner.test.mjs) | Policy examples, invariants, persistence, goals, old snapshots, auth and concurrency. Read these with the planner implementation. | |
 | [tests/health.test.mjs](../tests/health.test.mjs) | Live dependency probes, real isolated schema failure, unreachable Redis, and generic failure responses. | |
+| [tests/calendar.test.mjs](../tests/calendar.test.mjs) | UTC/month/leap-year boundaries, invalid ranges, session isolation, more than 30 activities, and historical plans alongside completed activities. | |
 | [scripts/test-strava.mjs](../scripts/test-strava.mjs) | Shared integration harness despite its historical name: creates a random DB, migrates it, runs one suite, and removes only that DB. Sync gets the same unique Redis prefix. Review cleanup protections before modifying. | |
 | [scripts/smoke-ping.mjs](../scripts/smoke-ping.mjs) | HTTP-to-queue-to-worker smoke test, invalid payload/unknown job rejection, removal of its own jobs. Requires running web/worker. | |
 | [tests/ping-route.test.mjs](../tests/ping-route.test.mjs) | Tests default-off diagnostics, exact environment opt-in, rejection of request-level bypasses, and enabled payload validation without external services. | |
 | [docs/product-vision.md](../docs/product-vision.md) | Product direction, expanded pre-AI scope, and deferred capabilities; use alongside the live MVP checklist. | |
+| [docs/design.md](../docs/design.md) | Detailed system design, current behavior versus proposals, data/API contracts, failure handling, planner rules, and numbered decisions for change review. | |
 | [package.json](../package.json) | Workspace membership and ordered build/test/dev commands. `db:reset` and `db:recreate` are destructive tools, not routine validation commands. | |
 | [package-lock.json](../package-lock.json) | npm-generated resolved dependency graph. Review dependency diffs; do not hand-edit. No dependency upgrade was made in this review. | |
 | [tsconfig.json](../tsconfig.json) | Root strict compiler settings, currently inherited by worker; web/shared/db have their own configs. | |
@@ -332,6 +349,13 @@ verify rollback cleanup and independent-user progress. No latency/load benchmark
 was performed; the lock is scoped to one user and contains no network ingestion.
 
 For your own UI review, restart `npm run dev` after the shared/worker changes, then:
+
+Calendar follow-up browser checks passed with disposable Postgres fixtures and
+headless Chrome: compact colored cards, details on click, Escape/focus return,
+month navigation, regeneration refresh, mobile containment, and failed-load retry.
+Five persistent calendar API/storage tests also pass. Inspect a week containing
+both activity and plan entries; green activities do not automatically remove blue
+workouts. Use the collapsible controls below the grid for the checks that follow.
 
 1. Check the connected dashboard and compare a week's minutes against stored
    activities. Be explicit about UTC boundaries and moving time.

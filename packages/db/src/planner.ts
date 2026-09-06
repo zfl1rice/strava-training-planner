@@ -1,6 +1,7 @@
 import {
   AUTOMATIC_WEEKLY_GOALS, WeeklyGoalsSchema, generateWeeklyPlan, mondayUtc,
   nextPlanWeek, validateWeeklyPlan, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan,
+  WorkoutStatesSchema,
 } from "@pkg/shared";
 import { prisma } from "./client.js";
 import { getTrainingSummary } from "./training.js";
@@ -8,6 +9,7 @@ import type { Prisma } from "@prisma/client";
 import { lockUserTraining } from "./training-lock.js";
 
 export class PlanSyncInProgressError extends Error {}
+export class PlanHasProtectedWorkoutsError extends Error {}
 
 export async function getWeeklyGoals(
   userId: number,
@@ -63,6 +65,13 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
     if (activeSync) {
       throw new PlanSyncInProgressError("Wait for activity sync to finish before generating a plan.");
     }
+    const existingPlan = await transaction.weeklyPlan.findUnique({
+      where: { userId_weekStart: { userId, weekStart: nextPlanWeek(now) } },
+      select: { workoutStates: true },
+    });
+    if (existingPlan && WorkoutStatesSchema.parse(existingPlan.workoutStates).some(state => state.locked || state.completion !== "PLANNED")) {
+      throw new PlanHasProtectedWorkoutsError("This week contains locked or completed workouts. The v1 planner cannot replace them.");
+    }
     const [summary, connection, latestSync, goals] = await Promise.all([
       getTrainingSummary(userId, now, transaction),
       transaction.stravaConnection.findUnique({ where: { userId }, select: { lastSuccessfulSyncAt: true } }),
@@ -84,7 +93,7 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
     const savedPlan = await transaction.weeklyPlan.upsert({
       where: { userId_weekStart: { userId, weekStart } },
       create: { userId, weekStart, content: plan },
-      update: { content: plan },
+      update: { content: plan, workoutStates: [] },
     });
     return serializeSavedPlan(savedPlan);
   }, { isolationLevel: "ReadCommitted", timeout: 10000 });

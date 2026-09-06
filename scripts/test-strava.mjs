@@ -11,6 +11,8 @@ const testFiles = {
   training: "tests/training-summary.test.mjs",
   planner: "tests/planner.test.mjs",
   health: "tests/health.test.mjs",
+  calendar: "tests/calendar.test.mjs",
+  planning: "tests/planning-context.test.mjs",
 };
 const testFile = testFiles[process.argv[2] ?? "oauth"];
 if (!testFile) throw new Error("Unknown integration test suite");
@@ -29,6 +31,7 @@ const env = {
   STRAVA_CLIENT_SECRET: "test-only-client-secret",
   STRAVA_REDIRECT_URI: "http://localhost:3000/api/strava/callback",
   TSX_TSCONFIG_PATH: fileURLToPath(new URL("../apps/web/tsconfig.json", import.meta.url)),
+  WRITE_PLANNING_CONTEXT_EXAMPLE: process.argv.includes("--example") ? "true" : "false",
 };
 let created = false;
 try {
