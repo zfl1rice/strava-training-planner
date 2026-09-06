@@ -9,11 +9,30 @@ Proposals in that document do not change the implementation status below.
 - [x] Shared schemas and `buildPlanningContext`, with local summaries/date overrides.
 - [x] Manual baseline precedence, custom zone preservation, and explicit missing evidence.
 - [x] Seeded readable context and focused integration tests.
-- [ ] Configuration UI, fitness calculations, structured AI workouts, and OpenAI calls.
+- [x] Profile, race-goal, and availability configuration UI (follow-up below).
+- [ ] Fitness calculations, structured AI workouts, and OpenAI calls.
 
 See [the checkpoint review guide](planning-context.md) and [seeded JSON](planning-context.example.json).
 The fixed UTC deterministic planner remains available; protected workout metadata
 now prevents it from overwriting locked/completed workouts.
+
+## September 6 planning settings UI
+
+- [x] Responsive sidebar: Calendar, Goals, Availability, Profile.
+- [x] Timezone and manual cycling FTP, running maximum HR, and swim threshold pace.
+- [x] Race creation, editing, deletion, and independent 0–100 importance scores.
+- [x] Recurring day limits, permitted sports, pool access, and date overrides.
+- [x] Authenticated storage, section-scoped edits, and stale-edit conflict handling.
+- [x] Preserve estimates, custom zones, restrictions, and existing calendar workouts.
+- [x] Seven settings integration tests, ten context regressions, and 27 planner
+  regressions pass; workspace typechecks, lint, and production build pass.
+- [x] Browser checks cover persistence, race CRUD, failure/retry, mobile navigation,
+  and the unauthenticated state. Desktop/mobile screenshots inspected.
+- [ ] Apply these settings when generating workouts; the current planner still
+  uses its fixed UTC schedule.
+
+See [implementation details, verification steps, and the review table](planning-settings.md).
+No new dependency, migration, or AI call was added.
 
 ## Original MVP checklist
 
@@ -31,14 +50,15 @@ now prevents it from overwriting locked/completed workouts.
 - [x] Decision 3: disable Ping diagnostics by default; explicitly enable for testing
 - [x] Readability review: focused cleanup, terminal retry-message fix, and CR file table
 - [x] Month calendar: green completed activities, blue plans, click-to-open details
-- [ ] Athlete/race profile: race type/date, experience, weekly availability, rest day,
-  sport days, and basic scheduling constraints
+- [x] Athlete/race configuration: race type/date, weekly availability, rest days,
+  sport days, and session/time limits
+- [ ] Additional profile inputs such as experience and restriction editing
 - [ ] Extend the deterministic planner to use the profile, time until race, and
   availability; validate scheduling constraints and display the resulting week
 
 The [product vision](product-vision.md) supplied September 5 expands the original
-MVP with the two unchecked items above. Existing summaries, templates, and weekly
-goals should be reused. Profile collection is the next product milestone; the
+MVP with profile inputs and adaptive scheduling. Existing summaries, templates, and weekly
+goals should be reused. Profile collection is now partially implemented; the
 current fixed-day planner does not yet satisfy the expanded planning requirements.
 
 ## Verified PingJob milestone

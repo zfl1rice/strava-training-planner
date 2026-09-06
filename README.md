@@ -5,8 +5,10 @@ and shared Zod schemas. Web and worker communicate through Redis/BullMQ.
 
 The [PlanningContext checkpoint](docs/planning-context.md) adds athlete profiles,
 race demands, evidence history, availability, and restrictions for future planning.
-See the [seeded context example](docs/planning-context.example.json). AI calls and
-configuration screens are not implemented; the existing v1 planner remains available.
+See the [seeded context example](docs/planning-context.example.json). The sidebar now
+provides [Profile, Goals, and Availability screens](docs/planning-settings.md).
+These save planning inputs; the existing v1 planner does not yet apply them.
+AI calls are not implemented.
 
 ## Strava connection setup
 

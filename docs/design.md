@@ -6,7 +6,9 @@
 documents the subsequently implemented profile/race/evidence foundation, local-date
 context, and protected workout metadata. Its implementation notes supersede this
 September 5 snapshot where they differ. The future provider is the OpenAI API;
-no model integration has been implemented.
+no model integration has been implemented. A subsequent
+[planning settings increment](planning-settings.md) adds the Profile, Goals, and
+Availability screens without changing v1 generation behavior.
 
 This document describes the September 5 working tree, including the new training
 calendar. It also proposes a small path to the expanded pre-AI MVP. Proposed work

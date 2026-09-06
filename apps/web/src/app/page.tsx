@@ -17,7 +17,7 @@ const messages: Record<string, string> = {
 };
 
 export default async function Home({ searchParams }: {
-  searchParams: Promise<{ strava?: string }>;
+  searchParams: Promise<{ strava?: string; goals?: string }>;
 }) {
   const params = await searchParams;
   let configured = true;
@@ -57,7 +57,7 @@ export default async function Home({ searchParams }: {
           </button>
         </form>
       </section>
-      {dashboard && planner && <ActivityDashboard initialData={dashboard} initialPlanner={planner} />}
+      {dashboard && planner && <ActivityDashboard initialData={dashboard} initialPlanner={planner} initialGoalsOpen={params.goals === "open"} />}
     </main>
   );
 }

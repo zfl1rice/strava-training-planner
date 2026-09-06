@@ -5,3 +5,4 @@ export * from "./training.js";
 export * from "./planner.js";
 export * from "./calendar.js";
 export * from "./planning-context.js";
+export * from "./planning-settings.js";

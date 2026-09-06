@@ -8,7 +8,7 @@ import TrainingCalendar from "./training-calendar";
 
 const formatUtcTimestamp = (date: string) => new Date(date).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
-export default function ActivityDashboard({ initialData, initialPlanner }: { initialData: SyncDashboard; initialPlanner: PlannerState }) {
+export default function ActivityDashboard({ initialData, initialPlanner, initialGoalsOpen = false }: { initialData: SyncDashboard; initialPlanner: PlannerState; initialGoalsOpen?: boolean }) {
   const [data, setData] = useState(initialData);
   const [submitting, setSubmitting] = useState(false);
   const [planRevision, setPlanRevision] = useState(0);
@@ -76,7 +76,7 @@ export default function ActivityDashboard({ initialData, initialPlanner }: { ini
         </button>
       </div>
       <TrainingCalendar initialMonth={initialData.trainingSummary.generatedAt.slice(0, 7)} refreshKey={calendarRefreshKey} />
-      <details className="rounded-xl border border-slate-200 bg-white">
+      <details className="rounded-xl border border-slate-200 bg-white" open={initialGoalsOpen}>
         <summary className="cursor-pointer px-5 py-4 font-medium">Plan settings &amp; weekly goals</summary>
         <WeeklyPlanner initialData={initialPlanner} syncActive={syncActive || submitting}
           onPlanSaved={() => setPlanRevision(value => value + 1)} />

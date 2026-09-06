@@ -8,3 +8,4 @@ export * from "./calendar.js";
 export * from "./planning-dates.js";
 export * from "./athlete-profile.js";
 export * from "./planning-context.js";
+export * from "./planning-settings.js";

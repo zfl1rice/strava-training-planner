@@ -13,6 +13,7 @@ const testFiles = {
   health: "tests/health.test.mjs",
   calendar: "tests/calendar.test.mjs",
   planning: "tests/planning-context.test.mjs",
+  settings: "tests/planning-settings.test.mjs",
 };
 const testFile = testFiles[process.argv[2] ?? "oauth"];
 if (!testFile) throw new Error("Unknown integration test suite");

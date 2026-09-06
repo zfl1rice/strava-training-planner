@@ -4,6 +4,10 @@ This milestone supplies database-backed planning inputs. It does not call an LLM
 generate AI workouts, or change the existing calendar's scheduling policy. The
 OpenAI API is the chosen future execution route; no API client or keys were added.
 
+The subsequent [planning settings UI](planning-settings.md) exposes manual baselines,
+timezone, races, and availability through authenticated forms. The audit below
+describes the original foundation checkpoint, before those screens were added.
+
 ## Audit
 
 The working tree already contained OAuth, activity ingestion/recovery, summaries,

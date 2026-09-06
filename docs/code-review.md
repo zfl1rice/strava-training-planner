@@ -6,7 +6,9 @@ Start with the [checkpoint and new-file review map](planning-context.md#review-m
 and [seeded output](planning-context.example.json). This pass adds three domain tables,
 shared planning schemas, local-date context construction, and protected v1 workout
 metadata. The detailed September 5 file map below remains the guide to existing code.
-No AI calls or profile configuration UI have been added.
+No AI calls were added. The subsequent [planning settings UI review map](planning-settings.md#file-review-map)
+covers the new sidebar, forms, settings API, and storage edits. Start that review
+with ownership checks, preservation of noneditable profile data, and stale-edit handling.
 
 Reviewed September 4, 2026; automatic recovery, sync/plan coordination, and opt-in
 Ping diagnostics implemented September 5. See [the product vision](product-vision.md)
