@@ -7,6 +7,7 @@ export const CalendarMonthSchema = z.string().regex(/^(19|20|21)\d{2}-(0[1-9]|1[
 
 export type TrainingCalendarData = {
   month: string;
+  timeZone?: string;
   activities: SyncDashboard["activities"];
   plans: SavedWeeklyPlan[];
 };

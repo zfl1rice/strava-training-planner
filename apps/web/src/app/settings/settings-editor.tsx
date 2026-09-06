@@ -45,7 +45,7 @@ export default function SettingsEditor({ section, initialSettings }: {
 
   return <div className="space-y-5 settings-editor">
     <p className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-      These settings are saved for future adaptive planning. The current basic planner still uses fixed days and UTC; it does not yet apply your races, fitness, or availability.
+      New plans use your timezone and availability. Race-specific intensity selection is still deferred. Save settings, then request generation to apply changes.
     </p>
     {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
     {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">

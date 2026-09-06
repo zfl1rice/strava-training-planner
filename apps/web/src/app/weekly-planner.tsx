@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PlanSportSchema, WeeklyGoalsSchema, WORKOUT_TEMPLATES, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan } from "@pkg/shared";
+import { PlanSportSchema, WeeklyGoalsSchema, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan } from "@pkg/shared";
 
 const formatPlanDate = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const formatMinutes = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 1 });
@@ -16,7 +16,7 @@ function PlanDetails({ saved }: { saved: SavedWeeklyPlan }) {
       <p><strong>{plan.totalMinutes} planned minutes</strong> · {plan.mode === "STARTER" ? "Optional starter schedule" : plan.mode === "CUSTOM" ? "Custom weekly goals" : "Based on recent training"}</p>
       {plan.mode === "CUSTOM" && <p className="text-sm">Uses your saved custom goals. Blank sports use recent training history.</p>}
       {plan.mode !== "STARTER" && hasSparseHistory && <p className="text-sm">Some sports have limited recorded history. Review the assumptions below.</p>}
-      {targetTotalMinutes > plan.totalMinutes && <p role="status" className="text-sm">Goal total: {targetTotalMinutes} min. {targetTotalMinutes - plan.totalMinutes} min could not be scheduled within the workout template limits.</p>}
+      {targetTotalMinutes > plan.totalMinutes && <p role="status" className="text-sm">Goal total: {targetTotalMinutes} min. {targetTotalMinutes - plan.totalMinutes} min could not be scheduled within the scheduling constraints.</p>}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <caption className="mb-2 text-left">Minutes by sport</caption>
@@ -114,7 +114,7 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
   return (
     <section className="space-y-4 rounded-lg border p-6" aria-labelledby="planner-heading">
       <h2 id="planner-heading" className="text-xl font-semibold">Weekly plan</h2>
-      <p className="text-sm">Generate an easy swim, bike, and run schedule for the week starting {formatPlanDate(plannerState.nextWeekStart)} (UTC).</p>
+      <p className="text-sm">Generate an easy swim, bike, and run schedule for the week starting {formatPlanDate(plannerState.nextWeekStart)} using your profile timezone and availability.</p>
       <form onSubmit={event => { event.preventDefault(); void saveGoals(); }} className="space-y-3 rounded border p-4">
         <fieldset disabled={saving || generating} className="space-y-3">
           <legend className="font-medium">Weekly goal minutes</legend>
@@ -124,10 +124,9 @@ export default function WeeklyPlanner({ initialData, syncActive, onPlanSaved }: 
               <span className="block">{sport === "RUN" ? "Run" : sport === "BIKE" ? "Bike" : "Swim"} minutes / week</span>
               <input type="number" min={0} max={10080} step={5} value={goalFields[sport]} placeholder="Automatic" aria-describedby="goal-help"
                 onChange={event => { setGoalFields(previous => ({ ...previous, [sport]: event.target.value })); setMessage(null); }} className="w-full rounded border bg-transparent p-2" />
-              <span className="block text-xs">Template capacity: {WORKOUT_TEMPLATES.filter(template => template.sport === sport).reduce((sum, template) => sum + template.maxMinutes, 0)} min/week</span>
             </label>)}
           </div>
-          <p className="text-sm">Custom entries total: {formatMinutes(customTotal)} min{PlanSportSchema.options.some(sport => goalFields[sport] === "") ? "; automatic targets are additional." : "."} Any minutes beyond template limits will be shown as unscheduled.</p>
+          <p className="text-sm">Custom entries total: {formatMinutes(customTotal)} min{PlanSportSchema.options.some(sport => goalFields[sport] === "") ? "; automatic targets are additional." : "."} Minutes that cannot fit your availability will be shown as unscheduled.</p>
           <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={!hasUnsavedGoals} className="rounded border px-3 py-2 disabled:opacity-50">{saving ? "Saving..." : "Save goals"}</button>
             <button type="button" onClick={() => { setGoalFields({ RUN: "", BIKE: "", SWIM: "" }); setMessage(null); }} className="rounded border px-3 py-2">Use automatic targets</button>

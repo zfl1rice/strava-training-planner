@@ -1,3 +1,5 @@
+import { buildPlanningContext } from "./planning-context.js";
+import { generateFlexiblePlan, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
 import {
   AUTOMATIC_WEEKLY_GOALS, WeeklyGoalsSchema, generateWeeklyPlan, mondayUtc,
   nextPlanWeek, validateStoredPlan, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan,
@@ -34,8 +36,10 @@ function serializeSavedPlan(row: { id: number; updatedAt: Date; content: unknown
 }
 
 export async function getPlannerState(userId: number, now = new Date()): Promise<PlannerState> {
-  const currentWeekStart = mondayUtc(now);
-  const nextWeekStart = nextPlanWeek(now);
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { timeZone: true } });
+  const monday = calendarMonday(localDateAt(now, user.timeZone));
+  const currentWeekStart = new Date(`${monday}T00:00:00Z`);
+  const nextWeekStart = new Date(`${addCalendarDays(monday, 7)}T00:00:00Z`);
   const [goals, savedPlanRows] = await Promise.all([
     getWeeklyGoals(userId),
     prisma.weeklyPlan.findMany({
@@ -97,4 +101,19 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
     });
     return serializeSavedPlan(savedPlan);
   }, { isolationLevel: "ReadCommitted", timeout: 10000 });
+}
+
+export async function generateAndSaveFlexiblePlan(userId: number, now = new Date()): Promise<SavedWeeklyPlan> {
+  return prisma.$transaction(async database => {
+    await lockUserTraining(database, userId);
+    const context = await buildPlanningContext(userId, { now }, database);
+    if (context.dataQuality.syncInProgress) throw new PlanSyncInProgressError("Wait for activity sync to finish before generating a plan.");
+    const existing = context.existingPlans.find(plan => plan.content.weekStart.slice(0, 10) === context.targetWeek.startDate);
+    if (existing?.workoutStates.some(state => state.locked || state.completion !== "PLANNED")) throw new PlanHasProtectedWorkoutsError("This week contains protected workouts; replacement is not available yet.");
+    const content = generateFlexiblePlan(context);
+    const weekStart = new Date(content.weekStart);
+    const saved = await database.weeklyPlan.upsert({ where: { userId_weekStart: { userId, weekStart } },
+      create: { userId, weekStart, content }, update: { content, workoutStates: [] } });
+    return serializeSavedPlan(saved);
+  }, { timeout: 15000 });
 }

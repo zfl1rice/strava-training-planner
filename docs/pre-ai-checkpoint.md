@@ -5,7 +5,8 @@ are introduced by this sequence.
 
 - [x] Expand the workout format: v2 custom workouts, stable IDs, repeated interval
   blocks, intensity targets, multiple sessions per date, compatible v1 reads.
-- [ ] Replace fixed scheduling
+- [x] Replace fixed scheduling: configured local days, session/time/pool limits,
+  restrictions, rest days, and explicit shortfalls replace the v1 template caps.
 - [ ] Resolve workout targets
 - [ ] Add feedback and adjustment controls
 - [ ] Implement regeneration boundaries

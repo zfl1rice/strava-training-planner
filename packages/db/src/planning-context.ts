@@ -93,12 +93,12 @@ function resolveFitness(profile: AthleteProfile): PlanningContext["fitness"] {
  * RepeatableRead keeps profile, goals, evidence, and plan reads in one snapshot.
  */
 export async function buildPlanningContext(
-  userId: number, options: { now?: Date; weekStart?: string } = {},
+  userId: number, options: { now?: Date; weekStart?: string } = {}, database?: Prisma.TransactionClient,
 ): Promise<PlanningContext> {
   const now = options.now ?? new Date();
   if (!Number.isSafeInteger(userId) || userId <= 0) throw new Error("Invalid athlete ID");
   PlanningTimestampSchema.parse(now.toISOString());
-  return prisma.$transaction(async database => {
+  const readContext = async (database: Prisma.TransactionClient) => {
     const user = await database.user.findUnique({ where: { id: userId }, select: { id: true, timeZone: true } });
     if (!user) throw new Error("Athlete not found");
     const timeZone = TimeZoneSchema.parse(user.timeZone);
@@ -179,5 +179,6 @@ export async function buildPlanningContext(
       dataQuality: { lastSuccessfulSyncAt: connection?.lastSuccessfulSyncAt?.toISOString() ?? null,
         syncInProgress: Boolean(unfinishedSync), latestSyncStatus: latestSync?.status ?? null, notes },
     });
-  }, { isolationLevel: "RepeatableRead", timeout: 15000 });
+  };
+  return database ? readContext(database) : prisma.$transaction(readContext, { isolationLevel: "RepeatableRead", timeout: 15000 });
 }

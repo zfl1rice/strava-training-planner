@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarMonthSchema, calendarMonthRange, type TrainingCalendarData, calendarWorkouts } from "@pkg/shared";
+import { CalendarMonthSchema, calendarMonthRange, type TrainingCalendarData, calendarWorkouts, localDateAt } from "@pkg/shared";
 
 type CalendarEntry =
   | { kind: "completed"; date: string; activity: TrainingCalendarData["activities"][number] }
@@ -102,11 +102,11 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
   const weeks = Array.from({ length: (end.getTime() - start.getTime()) / DAY_MS / 7 }, (_, index) =>
     Array.from({ length: 7 }, (_, day) => new Date(start.getTime() + (index * 7 + day) * DAY_MS).toISOString().slice(0, 10)));
   const entries: CalendarEntry[] = [
-    ...(data?.activities.map(activity => ({ kind: "completed" as const, date: activity.startedAt.slice(0, 10), activity })) ?? []),
+    ...(data?.activities.map(activity => ({ kind: "completed" as const, date: localDateAt(new Date(activity.startedAt), data?.timeZone ?? "UTC"), activity })) ?? []),
     ...(data?.plans.flatMap(plan => calendarWorkouts(plan.content).map(workout => ({ kind: "planned" as const, date: workout.date, workout }))) ?? []),
   ];
   const restDates = new Set(data?.plans.flatMap(plan => plan.content.days.filter(day => day.kind === "REST").map(day => day.date)));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateAt(new Date(), data?.timeZone ?? "UTC");
   const monthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   function changeMonth(offset: number) {
     const date = new Date(`${month}-01T00:00:00Z`);
