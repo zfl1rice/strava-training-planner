@@ -1,5 +1,6 @@
+import { StoredPlanSchema, validateStoredPlan } from "./structured-workouts.js";
 import { z } from "zod";
-import { WeeklyGoalsSchema, WeeklyPlanSchema, validateWeeklyPlan } from "./planner.js";
+import { WeeklyGoalsSchema } from "./planner.js";
 import {
   AvailabilitySchema, CapabilitySchema, DayAvailabilitySchema, FitnessProfileSchema,
   PerformanceEvidenceSchema, RaceGoalSchema, RestrictionSchema, WorkoutStatesSchema,
@@ -31,13 +32,13 @@ const EffectiveBaselineSchema = z.object({
 
 export const ExistingContextPlanSchema = z.object({
   id: z.number().int().positive(), updatedAt: Timestamp,
-  content: WeeklyPlanSchema,
+  content: StoredPlanSchema,
   workoutStates: WorkoutStatesSchema,
 }).strict().superRefine((plan, context) => {
-  try { validateWeeklyPlan(plan.content); }
-  catch { context.addIssue({ code: "custom", message: "Invalid saved v1 plan" }); }
+  try { validateStoredPlan(plan.content); }
+  catch { context.addIssue({ code: "custom", message: "Invalid saved plan" }); }
   for (const state of plan.workoutStates) {
-    if (!plan.content.days.some(day => day.kind === "WORKOUT" && day.date === state.date && day.templateId === state.templateId)) {
+    if (!plan.content.days.some(day => day.kind === "WORKOUT" && day.date === state.date && (state.workoutId ? "id" in day && day.id === state.workoutId : day.templateId === state.templateId))) {
       context.addIssue({ code: "custom", message: "Workout state does not identify a workout in the saved plan" });
     }
   }

@@ -1,3 +1,4 @@
+import type { StoredPlan } from "./structured-workouts.js";
 import { z } from "zod";
 import { mondayUtc, type TrainingSummary } from "./training.js";
 
@@ -79,7 +80,7 @@ export const WeeklyPlanSchema = z.object({
 });
 
 export type WeeklyPlan = z.infer<typeof WeeklyPlanSchema>;
-export type SavedWeeklyPlan = { id: number; updatedAt: string; content: WeeklyPlan };
+export type SavedWeeklyPlan = { id: number; updatedAt: string; content: StoredPlan };
 export type PlannerState = { goals: WeeklyGoals; nextWeekStart: string; currentPlan: SavedWeeklyPlan | null; nextPlan: SavedWeeklyPlan | null };
 
 export function nextPlanWeek(now: Date): Date {

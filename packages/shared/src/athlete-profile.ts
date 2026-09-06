@@ -191,7 +191,8 @@ export const RaceGoalSchema = z.object({
 export const WorkoutStatesSchema = z.array(z.object({
   date: LocalDateSchema,
   templateId: z.string().min(1),
+  workoutId: z.string().min(1).max(100).optional(),
   locked: z.boolean(),
   completion: z.enum(["PLANNED", "COMPLETED", "MODIFIED", "STOPPED"]),
   feedback: z.object({ comment: z.string().max(4000), rpe: z.number().int().min(1).max(10).nullable() }).strict().nullable(),
-}).strict()).max(7).refine(states => new Set(states.map(value => value.date)).size === states.length, "Duplicate workout date");
+}).strict()).max(168).refine(states => new Set(states.map(value => value.workoutId ?? value.date)).size === states.length, "Duplicate workout identity");

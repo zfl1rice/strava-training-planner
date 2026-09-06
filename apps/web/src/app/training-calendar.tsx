@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarMonthSchema, calendarMonthRange, type TrainingCalendarData, type WeeklyPlan } from "@pkg/shared";
+import { CalendarMonthSchema, calendarMonthRange, type TrainingCalendarData, calendarWorkouts } from "@pkg/shared";
 
 type CalendarEntry =
   | { kind: "completed"; date: string; activity: TrainingCalendarData["activities"][number] }
-  | { kind: "planned"; date: string; workout: Extract<WeeklyPlan["days"][number], { kind: "WORKOUT" }> };
+  | { kind: "planned"; date: string; workout: ReturnType<typeof calendarWorkouts>[number] };
 
 const DAY_MS = 86400000;
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -50,7 +50,7 @@ function WorkoutDetails({ entry, onClose }: { entry: CalendarEntry | null; onClo
         </p>
         {entry.kind === "planned" ? (
           <ol className="space-y-3">
-            {entry.workout.steps.map(step => <li key={step.label} className="rounded-lg bg-slate-50 p-4">
+            {entry.workout.steps.map(step => <li key={`${step.label}-${step.minutes}`} className="rounded-lg bg-slate-50 p-4">
               <h3 className="font-medium">{step.label} <span className="font-normal text-slate-500">· {step.minutes} min</span></h3>
               <p className="mt-1 text-sm leading-6 text-slate-600">{step.instructions}</p>
             </li>)}
@@ -103,8 +103,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
     Array.from({ length: 7 }, (_, day) => new Date(start.getTime() + (index * 7 + day) * DAY_MS).toISOString().slice(0, 10)));
   const entries: CalendarEntry[] = [
     ...(data?.activities.map(activity => ({ kind: "completed" as const, date: activity.startedAt.slice(0, 10), activity })) ?? []),
-    ...(data?.plans.flatMap(plan => plan.content.days.flatMap(workout => workout.kind === "WORKOUT"
-      ? [{ kind: "planned" as const, date: workout.date, workout }] : [])) ?? []),
+    ...(data?.plans.flatMap(plan => calendarWorkouts(plan.content).map(workout => ({ kind: "planned" as const, date: workout.date, workout }))) ?? []),
   ];
   const restDates = new Set(data?.plans.flatMap(plan => plan.content.days.filter(day => day.kind === "REST").map(day => day.date)));
   const today = new Date().toISOString().slice(0, 10);
@@ -167,7 +166,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
                 </div>
                 <div className="space-y-2">
                   {weekEntries.filter(entry => entry.date === date).map(entry => <button type="button"
-                    key={entry.kind === "completed" ? `activity-${entry.activity.id}` : `plan-${date}`}
+                    key={entry.kind === "completed" ? `activity-${entry.activity.id}` : `plan-${entry.workout.id}`}
                     className={`calendar-entry calendar-entry-${entry.kind}`} onClick={() => setSelected(entry)}
                     aria-label={`${entry.kind === "completed" ? "Completed" : "Planned"}: ${Math.round(entryMinutes(entry))} min ${entryTitle(entry)}, ${formatDate(date)}`}>
                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide">{entry.kind === "completed" ? "✓ Completed" : "○ Planned"} · {entry.kind === "completed" ? entry.activity.type : entry.workout.sport}</span>

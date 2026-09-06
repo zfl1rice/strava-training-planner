@@ -9,3 +9,5 @@ export * from "./planning-dates.js";
 export * from "./athlete-profile.js";
 export * from "./planning-context.js";
 export * from "./planning-settings.js";
+
+export * from "./structured-workouts.js";

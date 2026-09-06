@@ -1,6 +1,6 @@
 import {
   AUTOMATIC_WEEKLY_GOALS, WeeklyGoalsSchema, generateWeeklyPlan, mondayUtc,
-  nextPlanWeek, validateWeeklyPlan, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan,
+  nextPlanWeek, validateStoredPlan, type WeeklyGoals, type PlannerState, type SavedWeeklyPlan,
   WorkoutStatesSchema,
 } from "@pkg/shared";
 import { prisma } from "./client.js";
@@ -30,7 +30,7 @@ export async function saveWeeklyGoals(userId: number, input: WeeklyGoals): Promi
 }
 
 function serializeSavedPlan(row: { id: number; updatedAt: Date; content: unknown }): SavedWeeklyPlan {
-  return { id: row.id, updatedAt: row.updatedAt.toISOString(), content: validateWeeklyPlan(row.content) };
+  return { id: row.id, updatedAt: row.updatedAt.toISOString(), content: validateStoredPlan(row.content) };
 }
 
 export async function getPlannerState(userId: number, now = new Date()): Promise<PlannerState> {
