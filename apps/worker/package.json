@@ -18,7 +18,9 @@
     "@pkg/db": "*",
     "@pkg/shared": "*",
     "bullmq": "^5.66.4",
+    "dotenv": "^17.2.3",
     "ioredis": "^5.9.1",
-    "dotenv": "^17.2.3"
+    "openai": "^7.10.0",
+    "zod": "3.25"
   }
 }

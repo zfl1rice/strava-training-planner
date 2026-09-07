@@ -1,5 +1,10 @@
 # AI integration readiness checkpoint
 
+The following describes the readiness checkpoint. The subsequent
+[OpenAI integration](openai-planner.md) adds a configurable worker provider,
+renewable leases, durable proposal reuse, and an explicit live evaluator.
+Deterministic generation remains the default.
+
 This checkpoint prepares generation semantics and execution safety. It makes no
 model calls, adds no prompts or credentials, and does not select a model. The
 deterministic generator remains the production provider.

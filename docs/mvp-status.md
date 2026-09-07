@@ -14,7 +14,21 @@ Proposals in that document do not change the implementation status below.
 - [x] Typed generation queue, persistent retries/recovery, and status polling.
 - [x] Validated provider contract with simulated custom-workout and rejection tests.
 - [x] Availability defaults to every day; saved rest days, pool restrictions, and date overrides take precedence.
-- [ ] AI calls, automatic performance inference, and race-specific training selection.
+- [x] [First OpenAI provider](openai-planner.md): worker-only Responses API,
+  Structured Outputs, corrections, cancellation/heartbeat, metadata, durable proposal reuse,
+  mocked integration tests, and an opt-in live evaluator. Deterministic remains default.
+- [x] User reported successful live `normal-build` API/schema/target-resolution validation.
+- [x] Strengthen goal/context guidance, final-week review and explanation consistency;
+  expose readable evaluator telemetry while preserving soft constraints.
+- [x] Order prompt priorities and top-down design; prefer continuity and minimal justified
+  deviations; separate frequency from volume and add derived per-sport comparisons.
+- [x] Add coaching philosophy that preserves sufficient stimulus and desired weekly goals,
+  integrated sport planning, key/support priorities, and evidence-aware uncertainty.
+- [x] Derive RACE_TARGETED/GENERAL_FITNESS objectives from relevant race dates; add no-race
+  and asymmetric-evidence fixtures (20 scenarios total), without performance inference.
+- [ ] User reruns `normal-build` after the prompt changes, then reviews the full live
+  scenario suite if satisfied. No paid calls are run automatically for this checkpoint.
+- [ ] Automatic performance inference and custom race-demand generation.
 
 The dated sections below record earlier checkpoints. Their deferred items may have
 been completed by the latest increment; the linked checklist is the current reference.

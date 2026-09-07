@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ProviderCallMetadata } from "./provider-call.js";
 import { analyzePlanningDeviations } from "./planning-deviations.js";
 import { PlanningContextSchema, type PlanningContext } from "./planning-context.js";
 import { LocalDateSchema } from "./planning-dates.js";
@@ -28,7 +29,10 @@ export class ProposalValidationError extends Error {
 export class ProposalAttemptsExhaustedError extends ProposalValidationError {
   constructor(issues: ProposalIssue[], public readonly attempts: number) { super(issues); this.name = "ProposalAttemptsExhaustedError"; }
 }
-export type ProposalAttempt = { attempt: number; previousErrors: ProposalIssue[] };
+export type ProposalAttempt = {
+  attempt: number; previousErrors: ProposalIssue[]; previousProposal?: unknown;
+  signal?: AbortSignal; reportCall?: (metadata: ProviderCallMetadata) => Promise<void>;
+};
 export type PlanProvider = (input: GenerationInput, correction: ProposalAttempt) => unknown | Promise<unknown>;
 export const MAX_PROPOSAL_ATTEMPTS = 3;
 
@@ -105,15 +109,21 @@ export function runPlanGeneration(context: PlanningContext, fromDate: string, pr
 
 // Each correction sees the same validated snapshot and only actionable proposal
 // errors. Provider/network exceptions escape to the infrastructure retry layer.
-export async function generatePlanWithCorrections(rawInput: GenerationInput, provider: PlanProvider = deterministicPlanProvider) {
+export async function generatePlanWithCorrections(rawInput: GenerationInput, provider: PlanProvider = deterministicPlanProvider,
+  execution: Pick<ProposalAttempt, "signal" | "reportCall"> = {}) {
   const input = GenerationInputSchema.parse(rawInput);
   let previousErrors: ProposalIssue[] = [];
+  let previousProposal: unknown;
   for (let attempt = 1; attempt <= MAX_PROPOSAL_ATTEMPTS; attempt++) {
-    const response = await provider(structuredClone(input), { attempt, previousErrors: structuredClone(previousErrors) });
+    execution.signal?.throwIfAborted();
+    const response = await provider(structuredClone(input), { ...execution, attempt,
+      previousErrors: structuredClone(previousErrors), previousProposal: structuredClone(previousProposal) });
+    execution.signal?.throwIfAborted();
     try { return finalizePlanProposal(input, response); }
     catch (error) {
       if (!(error instanceof ProposalValidationError)) throw error;
       previousErrors = error.issues;
+      previousProposal = response;
     }
   }
   throw new ProposalAttemptsExhaustedError(previousErrors, MAX_PROPOSAL_ATTEMPTS);

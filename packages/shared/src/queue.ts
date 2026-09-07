@@ -16,3 +16,5 @@ export const syncJobId = (jobRunId: number) => `sync-${jobRunId}`;
 
 export const planJobId = (jobRunId: number) => `plan-${jobRunId}`;
 export const PLAN_ATTEMPTS = 3;
+export const PLAN_LEASE_MS = 120000;
+export const PLAN_HEARTBEAT_MS = 20000;

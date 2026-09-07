@@ -133,8 +133,8 @@ test("proposal retries stop at three; infrastructure exceptions do not consume c
   assert.equal(calls, 1);
 });
 
-test("all 18 evaluation inputs validate and deterministic generation remains available", async () => {
-  const scenarios = planningScenarios(); assert.equal(scenarios.length, 18);
+test("all 20 evaluation inputs validate and deterministic generation remains available", async () => {
+  const scenarios = planningScenarios(); assert.equal(scenarios.length, 20);
   for (const scenario of scenarios) {
     PlanningContextSchema.parse(scenario.input.context);
     const plan = await generatePlanWithCorrections(scenario.input);

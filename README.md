@@ -11,7 +11,9 @@ New plans use those settings through the [pre-AI generation flow](docs/pre-ai-ch
 web request → BullMQ → worker → validated v2 plan → Postgres → calendar.
 Workouts support intervals, numeric targets, feedback, and protected regeneration.
 The Adjustments page supports temporary volume/intensity changes and restrictions.
-Old v1 plans remain readable. AI calls are not implemented.
+Old v1 plans remain readable. The [OpenAI planner](docs/openai-planner.md) is now
+wired into the worker and is opt-in; deterministic generation remains the default.
+Normal tests and local evaluation make no paid model calls.
 
 ## Strava connection setup
 

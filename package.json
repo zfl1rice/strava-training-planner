@@ -32,6 +32,8 @@
     "test:adaptive": "npm run build:packages && node scripts/test-strava.mjs adaptive",
     "test:semantics": "npm run build:packages && node scripts/test-strava.mjs semantics",
     "evaluate:planner": "npm run build:packages && node scripts/evaluate-planner.mjs",
+    "evaluate:planner:openai": "npm run build:packages && npm run build --workspace @app/worker && node scripts/evaluate-planner.mjs --openai",
+    "test:openai": "npm run build:packages && node scripts/test-strava.mjs openai",
     "test:settings": "npm run build:packages && node scripts/test-strava.mjs settings",
     "db:generate": "npm exec --workspace @pkg/db -- prisma generate",
     "db:deploy": "npm exec --workspace @pkg/db -- prisma migrate deploy"

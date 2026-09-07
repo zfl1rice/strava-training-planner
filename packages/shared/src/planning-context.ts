@@ -6,7 +6,15 @@ import {
   AvailabilitySchema, CapabilitySchema, DayAvailabilitySchema, FitnessProfileSchema,
   PerformanceEvidenceSchema, RaceGoalSchema, RestrictionSchema, WorkoutStatesSchema, TrainingAdjustmentSchema,
 } from "./athlete-profile.js";
-import { addCalendarDays, LocalDateSchema, TimeZoneSchema, calendarWeekday } from "./planning-dates.js";
+import { addCalendarDays, LocalDateSchema, TimeZoneSchema, calendarWeekday, localDateAt } from "./planning-dates.js";
+
+export const PlanningObjectiveSchema = z.object({ mode: z.enum(["RACE_TARGETED", "GENERAL_FITNESS"]) }).strict();
+export type PlanningObjective = z.infer<typeof PlanningObjectiveSchema>;
+
+// Match the DB context's current/future race filter, using the frozen local date.
+export function derivePlanningObjective(races: readonly { goal: { date: string } }[], today: string): PlanningObjective {
+  return { mode: races.some(race => race.goal.date >= today) ? "RACE_TARGETED" : "GENERAL_FITNESS" };
+}
 
 const Timestamp = z.string().datetime();
 const TotalsSchema = z.object({
@@ -62,6 +70,8 @@ export const PlanningContextSchema = z.object({
     historyRecordCount: z.number().int().nonnegative(), evidenceTruncated: z.boolean(),
   }).strict(),
   races: z.array(z.object({ id: z.number().int().positive(), goal: RaceGoalSchema }).strict()),
+  // Optional on input for saved snapshots; always derived on output, never an independent setting.
+  planningObjective: PlanningObjectiveSchema.optional(),
   recentTraining: LocalTrainingSummarySchema,
   trainingHistory: PlanningHistorySchema.optional(),
   availability: z.object({
@@ -98,5 +108,5 @@ export const PlanningContextSchema = z.object({
   if (value.athlete.timeZone !== value.recentTraining.timeZone) {
     context.addIssue({ code: "custom", message: "Training summary timezone differs from athlete timezone" });
   }
-});
+}).transform(value => ({ ...value, planningObjective: derivePlanningObjective(value.races, localDateAt(new Date(value.generatedAt), value.athlete.timeZone)) }));
 export type PlanningContext = z.infer<typeof PlanningContextSchema>;

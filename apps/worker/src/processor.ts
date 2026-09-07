@@ -1,3 +1,4 @@
+import { configuredPlanProvider } from "./plan-provider.js";
 import { DelayedError, UnrecoverableError, type Job } from "bullmq";
 import { JOBS, GeneratePlanJobSchema, PingJobSchema, SyncAthleteJobSchema, SYNC_HISTORY_DAYS, SYNC_ATTEMPTS } from "@pkg/shared";
 import {
@@ -17,7 +18,7 @@ export async function processJob(job: Job) {
   if (job.name === JOBS.generatePlan) {
     const parsed = GeneratePlanJobSchema.safeParse(job.data);
     if (!parsed.success) throw new UnrecoverableError("Invalid GeneratePlanJob");
-    const result = await executePlanRun(parsed.data.jobRunId);
+    const result = await executePlanRun(parsed.data.jobRunId, configuredPlanProvider());
     if (result.status === "DEFERRED") { await job.moveToDelayed(result.until!, job.token); throw new DelayedError(); }
     if (result.status !== "SUCCESS") throw new UnrecoverableError("Generation request is terminal");
     return result;

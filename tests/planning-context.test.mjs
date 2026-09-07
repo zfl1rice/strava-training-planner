@@ -64,9 +64,24 @@ test("multiple race scores are independent; stored custom demands are returned w
   await createRaceGoal(user.id, race("Past event", "2026-08-01", 100));
   const context = await buildPlanningContext(user.id, { now });
   assert.deepEqual(context.races.map(entry => entry.goal.importance), [95, 95]);
+  assert.equal(context.planningObjective.mode, "RACE_TARGETED");
   assert.deepEqual(context.races[0].goal.demandProfile, sprint.demandProfile);
   assert.ok(context.performanceProfile.cycling.every(entry => entry.confidence === "INSUFFICIENT_EVIDENCE" && entry.score === null));
   assert.ok(context.performanceProfile.running.every(entry => entry.trend === "UNKNOWN"));
+});
+
+test("objective follows current/future races on the athlete's local date, including zero-importance goals", async () => {
+  await saveAthleteProfile(user.id, emptyAthleteProfile(), "America/Chicago");
+  await createRaceGoal(user.id, race("Past event", "2026-09-04", 100));
+  const boundary = new Date("2026-09-06T02:00:00Z"); // Still September 5 locally.
+  assert.equal((await buildPlanningContext(user.id, { now: boundary })).planningObjective.mode, "GENERAL_FITNESS");
+  await createRaceGoal(user.id, race("Local race today", "2026-09-05", 0));
+  const current = await buildPlanningContext(user.id, { now: boundary });
+  assert.equal(current.planningObjective.mode, "RACE_TARGETED");
+  assert.equal(current.races.length, 1);
+  assert.equal((await buildPlanningContext(user.id, { now })).planningObjective.mode, "GENERAL_FITNESS");
+  await createRaceGoal(user.id, race("Future event", "2026-10-01", 60));
+  assert.equal((await buildPlanningContext(user.id, { now })).planningObjective.mode, "RACE_TARGETED");
 });
 
 test("date overrides win, missing availability uses defaults, restrictions overlap the target week inclusively", async () => {
@@ -145,6 +160,7 @@ test("ownership excludes other athletes and credentials; evidence cannot referen
   await assert.rejects(saveWorkoutStates(user.id, otherPlan.id, otherPlan.updatedAt, []), /not found/);
   const context = await buildPlanningContext(user.id, { now });
   assert.deepEqual(context.races, []);
+  assert.equal(context.planningObjective.mode, "GENERAL_FITNESS");
   assert.deepEqual(context.existingPlans, []);
   assert.deepEqual(context.performanceProfile.evidence, []);
   assert.doesNotMatch(JSON.stringify(context), /private-access|private-refresh|accessToken|refreshToken|tokenHash/);

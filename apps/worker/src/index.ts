@@ -2,6 +2,7 @@ import { config } from "dotenv";
 import { Worker } from "bullmq";
 import { bullConnectionFromUrl, QUEUES } from "@pkg/shared";
 
+config({ path: new URL("../.env.local", import.meta.url), quiet: true });
 config({ path: new URL("../../../.env", import.meta.url), quiet: true });
 // Load the database only after the root environment has been read.
 const { processJob, stravaBackoff } = await import("./processor.js");

@@ -71,6 +71,21 @@ export function hardWorkout(id, date, sport = "BIKE", minutes = 30) {
 
 const definitions = [
   ["normal-build", "Normal 70.3 build week", () => {}],
+  ["general-fitness", "No race: sustainable triathlon development within desired weekly goals", input => { input.context.races = []; }],
+  ["asymmetric-evidence", "Supplied synthetic capability assessments support bike maintenance and run development", input => {
+    const profile = input.context.performanceProfile;
+    const common = { confidence: "MEDIUM", trend: "STABLE", updatedAt: input.context.generatedAt, methodVersion: "synthetic-assessment-v1" };
+    profile.cycling = [{ ...common, sport: "BIKE", key: "THRESHOLD", score: 85, evidenceIds: [1] }];
+    profile.running = [{ ...common, sport: "RUN", key: "FIVE_TEN_K", score: 45, evidenceIds: [2] }];
+    profile.evidence = [
+      { id: 1, observation: { sport: "BIKE", metric: "POWER_DURATION", benchmark: 1200, value: 270, occurredAt: input.context.generatedAt,
+        sourceActivityId: null, source: "MEASURED", isPersonalRecord: false, methodVersion: "synthetic-observation-v1" } },
+      { id: 2, observation: { sport: "RUN", metric: "DISTANCE_TIME", benchmark: 5000, value: 1600, occurredAt: input.context.generatedAt,
+        sourceActivityId: null, source: "MEASURED", isPersonalRecord: false, methodVersion: "synthetic-observation-v1" } },
+    ];
+    profile.historyRecordCount = 2;
+    input.context.dataQuality.notes.push("Synthetic supplied assessments identify sustained cycling as a maintenance strength and run development as an opportunity relative to this athlete's goals. Scores are fixture inputs, not inferred population percentiles or new baseline values.");
+  }],
   ["equal-races", "70.3 plus equally important two-minute cycling event", input => input.context.races.push({ id: 2, goal: race("Two-minute event", 90, "2026-10-10") })],
   ["secondary-race", "70.3 dominates a secondary short event", input => input.context.races.push({ id: 2, goal: race("Secondary short event", 15, "2026-10-10") })],
   ["illness-return", "Return toward previously recorded volume after illness", input => { history(input, [110, 180, 185, 190]); input.context.goals.RUN = 180; input.context.recentFeedback = [{ date: "2026-09-01", sport: "RUN", title: "Easy run", completion: "STOPPED", comment: "Illness reduced last week's training", rpe: 8 }]; }],

@@ -3,6 +3,7 @@ import { PlanSportSchema } from "./planner.js";
 import { addCalendarDays } from "./planning-dates.js";
 import type { PlanningContext } from "./planning-context.js";
 import type { StructuredWorkout } from "./structured-workouts.js";
+import { summarizeEstablishedTraining } from "./planning-history.js";
 
 // Measurements for explanation, never validation failures or physiological advice.
 export const PlanningDeviationSchema = z.object({
@@ -31,10 +32,9 @@ export function analyzePlanningDeviations(context: PlanningContext, workouts: St
     const proposedMinutes = proposed.reduce((sum, workout) => sum + workout.durationMinutes, 0);
     const weeks = context.trainingHistory?.weeks.map(week => week.sports[sport]) ?? [];
     const previous = weeks[0];
-    const top = weeks.map(week => week.minutes).filter(minutes => minutes > 0).sort((a, b) => b - a).slice(0, 3).sort((a, b) => a - b);
-    const established = top.length ? (top[Math.floor(top.length / 2)]! + top[Math.ceil(top.length / 2) - 1]!) / 2 : null;
+    const { minutes: established, sampleWeeks } = summarizeEstablishedTraining(weeks);
     if (previous && proposedMinutes !== previous.minutes) add(proposedMinutes > previous.minutes ? "VOLUME_INCREASE" : "VOLUME_DECREASE", sport,
-      { proposedMinutes, previousWeekMinutes: previous.minutes, recentEstablishedMinutes: established, establishedSampleWeeks: top.length,
+      { proposedMinutes, previousWeekMinutes: previous.minutes, recentEstablishedMinutes: established, establishedSampleWeeks: sampleWeeks,
         changeFromPreviousPercent: percentChange(proposedMinutes, previous.minutes), changeFromEstablishedPercent: established === null ? null : percentChange(proposedMinutes, established) },
       "Recorded volume comparison; percentage is unknown when the comparison volume is zero. Interpret alongside history and feedback.");
     if (previous && proposed.length > previous.sessions) add("SESSION_FREQUENCY_INCREASE", sport,

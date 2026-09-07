@@ -15,6 +15,7 @@ const testFiles = {
   planning: "tests/planning-context.test.mjs",
   adaptive: "tests/adaptive-planner.test.mjs",
   semantics: "tests/planning-semantics.test.mjs",
+  openai: "tests/openai-planner.test.mjs",
   settings: "tests/planning-settings.test.mjs",
 };
 const testFile = testFiles[process.argv[2] ?? "oauth"];
@@ -27,6 +28,7 @@ databaseUrl.pathname = `/${databaseName}`;
 const admin = new pg.Client({ connectionString: process.env.DATABASE_URL });
 const env = {
   ...process.env,
+  PLANNER_PROVIDER: "deterministic", OPENAI_API_KEY: "",
   DATABASE_URL: databaseUrl.toString(),
   OAUTH_TEST_DATABASE: databaseName,
   BULLMQ_PREFIX: databaseName,

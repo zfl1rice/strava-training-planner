@@ -17,6 +17,17 @@ export const PlanningHistorySchema = z.object({
 }).strict();
 export type PlanningHistory = z.infer<typeof PlanningHistorySchema>;
 
+// Reuse the deviation report's established-volume definition for prompt comparisons.
+// Sessions and longest-session medians use those SAME highest-volume weeks.
+export function summarizeEstablishedTraining(weeks: readonly z.infer<typeof SportHistorySchema>[]) {
+  const highestVolumeWeeks = weeks.filter(week => week.minutes > 0).sort((a, b) => b.minutes - a.minutes).slice(0, 3);
+  const median = (key: "minutes" | "sessions" | "longestMinutes") => {
+    const values = highestVolumeWeeks.map(week => week[key]).sort((a, b) => a - b);
+    return values.length ? (values[Math.floor(values.length / 2)]! + values[Math.ceil(values.length / 2) - 1]!) / 2 : null;
+  };
+  return { minutes: median("minutes"), sessions: median("sessions"), longestMinutes: median("longestMinutes"), sampleWeeks: highestVolumeWeeks.length };
+}
+
 // Activity dates have already been converted to local calendar labels by the DB layer.
 export function summarizePlanningHistory(activities: TrainingActivity[], today: string,
   completed: { date: string; sport: "RUN" | "BIKE" | "SWIM"; hard: boolean }[] = []): PlanningHistory {
