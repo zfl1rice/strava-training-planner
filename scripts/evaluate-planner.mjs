@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
-import { generatePlanWithCorrections, deterministicPlanProvider } from "@pkg/shared";
+import { generatePlanWithCorrections, deterministicPlanProvider, GenerationInputSchema } from "@pkg/shared";
 import { planningScenarios } from "../tests/fixtures/planning-scenarios.mjs";
 
 // Import this function to compare another provider against the same inputs.
@@ -9,6 +9,7 @@ export async function evaluatePlanner(provider = deterministicPlanProvider, scen
   const results = [];
   for (const scenario of scenarios) {
     const calls = [];
+    const attempts = [];
     let proposalAttempts = 0;
     const started = Date.now();
     const measuredProvider = (input, attempt) => {
@@ -17,16 +18,28 @@ export async function evaluatePlanner(provider = deterministicPlanProvider, scen
     };
     let outcome;
     try {
-      const plan = await generatePlanWithCorrections(scenario.input, measuredProvider, { reportCall: async call => { calls.push(call); } });
+      const plan = await generatePlanWithCorrections(scenario.input, measuredProvider, {
+        reportCall: async call => { calls.push(call); },
+        reportValidation: result => { attempts.push({ attempt: result.attempt, status: result.valid ? "VALID" : "INVALID", errors: result.issues }); },
+      });
       outcome = { valid: true, totals: { totalMinutes: plan.totalMinutes,
         sports: Object.fromEntries(Object.entries(plan.budgets).map(([sport, budget]) => [sport, budget.plannedMinutes])) }, analysis: plan.analysis, plan };
     } catch (error) {
       outcome = { valid: false, errors: error.issues ?? [{ code: error.category ?? "EVALUATION_ERROR", message: error.message }] };
+      if (proposalAttempts && !attempts.some(attempt => attempt.attempt === proposalAttempts)) {
+        attempts.push({ attempt: proposalAttempts, status: "NOT_VALIDATED", errors: outcome.errors });
+      }
     }
     const tokens = Object.fromEntries(["inputTokens", "cachedInputTokens", "outputTokens", "totalTokens"].map(key =>
       [key, calls.length && calls.every(call => call[key] !== null) ? calls.reduce((sum, call) => sum + call[key], 0) : null]));
+    const context = GenerationInputSchema.parse(scenario.input).context;
+    const block = context.developmentBlock;
+    const strategy = { planningObjective: context.planningObjective.mode, seasonPhase: context.seasonPhase,
+      developmentBlock: block ? { weekIndex: block.weekIndex, plannedWeeks: block.plannedWeeks, weekRole: block.weekRole,
+        focuses: block.focuses.map(({ sport, capability, role, progressionStrategy }) => ({ sport, capability, role, progressionStrategy })),
+      } : null };
     results.push({ id: scenario.id, description: scenario.description, model: calls.at(-1)?.model ?? null,
-      proposalAttempts, latencyMs: Date.now() - started, tokens, calls, ...outcome });
+      proposalAttempts, latencyMs: Date.now() - started, tokens, calls, attempts, strategy, ...outcome });
   }
   return results;
 }
@@ -35,8 +48,23 @@ export async function evaluatePlanner(provider = deterministicPlanProvider, scen
 export function formatEvaluationSummary(result) {
   const tokenCount = value => value == null ? "unknown" : value.toLocaleString("en-US");
   const responseIds = result.calls.map(call => call.responseId ?? "not returned");
+  const block = result.strategy?.developmentBlock;
+  const strategyLines = result.strategy ? [
+    `Planning objective: ${result.strategy.planningObjective}`,
+    `Season phase: ${result.strategy.seasonPhase ?? "none"}`,
+    ...(block ? [`Development block: week ${block.weekIndex === null ? "outside block" : block.weekIndex + 1} / ${block.plannedWeeks}`,
+      `Role: ${block.weekRole ?? "review needed"}`,
+      ...block.focuses.map(focus => `${focus.role}: ${focus.sport} / ${focus.capability}; progression: ${focus.progressionStrategy}`),
+    ] : ["Development block: none (no-block weekly planning)"]),
+  ] : [];
+  const attemptLines = (result.attempts ?? []).flatMap(attempt => [
+    `Attempt ${attempt.attempt}: ${attempt.status}`,
+    ...attempt.errors.slice(0, 10).map(error => `  ${error.code}${error.workoutId ? ` | workout: ${error.workoutId}` : ""} | path: ${error.path?.join(".") || "response"} | ${error.message}`),
+    ...(attempt.errors.length > 10 ? [`  ${attempt.errors.length - 10} more errors; see attempts in JSON output.`] : []),
+  ]);
   return [
     `Scenario: ${result.id}`,
+    ...strategyLines,
     `Model: ${result.model ?? "none (local / no model response)"}`,
     `Proposal attempts: ${result.proposalAttempts} | Provider calls: ${result.calls.length}`,
     `Latency: ${(result.latencyMs / 1000).toFixed(1)} s (whole scenario)`,
@@ -46,6 +74,7 @@ export function formatEvaluationSummary(result) {
     `Output tokens: ${tokenCount(result.tokens.outputTokens)}`,
     `Total tokens: ${tokenCount(result.tokens.totalTokens)}`,
     `Validation: ${result.valid ? "PASS" : "FAIL"}`,
+    ...attemptLines,
     "Tokens are summed across calls; unknown means usage was not fully reported.",
   ].join("\n");
 }

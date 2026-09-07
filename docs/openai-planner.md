@@ -1,5 +1,15 @@
 # First OpenAI planner integration
 
+See [review evidence and focus guidance](block-review-focus-guidance.md) for the
+latest review Structured Outputs schema, evidence-attribution instructions, and
+weekly focus-action semantics. The provider/model and live opt-in behavior are unchanged.
+
+The [adaptive block-review checkpoint](adaptive-block-reviews.md) adds a separate
+reviewer and opt-in evaluation command. Weekly and review providers share the
+existing Responses transport. The weekly prompt now discourages duration padding,
+requires accurate intensity titles, and explains PROGRESS/HOLD/recovery semantics.
+Production live review jobs remain deferred; local review persistence is available.
+
 This checkpoint connects a real provider to the existing planner contract. The worker
 uses the official OpenAI Node SDK and Responses API with Structured Outputs. The
 default remains deterministic. Initial implementation checks used mocked calls. The user
@@ -496,3 +506,9 @@ Generated `dist` files are build outputs; review the TypeScript sources instead.
 
 The implementation stops here for review. The final live check is intentionally left
 to the user after configuring credentials and accepting API usage.
+# Percentage targets and block-aware evaluation
+
+See the [September 7 unit audit and regression report](planner-target-units.md)
+for percentage-point validation, per-attempt errors, and the separate
+`general-fitness-active-block` scenario. The generic `general-fitness` fixture
+continues to test no-block behavior.

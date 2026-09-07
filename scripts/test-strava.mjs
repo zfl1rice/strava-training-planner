@@ -17,6 +17,8 @@ const testFiles = {
   semantics: "tests/planning-semantics.test.mjs",
   openai: "tests/openai-planner.test.mjs",
   settings: "tests/planning-settings.test.mjs",
+  blocks: "tests/development-blocks.test.mjs",
+  reviews: "tests/block-reviews.test.mjs",
 };
 const testFile = testFiles[process.argv[2] ?? "oauth"];
 if (!testFile) throw new Error("Unknown integration test suite");

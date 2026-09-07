@@ -1,4 +1,5 @@
 import { PlanningHistorySchema } from "./planning-history.js";
+import { ActiveDevelopmentBlockSchema, TrainingPhaseSchema, weeksBetween } from "./development-block.js";
 import { StoredPlanSchema, validateStoredPlan } from "./structured-workouts.js";
 import { z } from "zod";
 import { WeeklyGoalsSchema } from "./planner.js";
@@ -72,6 +73,10 @@ export const PlanningContextSchema = z.object({
   races: z.array(z.object({ id: z.number().int().positive(), goal: RaceGoalSchema }).strict()),
   // Optional on input for saved snapshots; always derived on output, never an independent setting.
   planningObjective: PlanningObjectiveSchema.optional(),
+  developmentBlock: ActiveDevelopmentBlockSchema.nullable().default(null),
+  seasonPhase: TrainingPhaseSchema.nullable().default(null),
+  blockTransition: z.object({ blockId: z.number().int().positive(), status: z.enum(["COMPLETED", "ABORTED"]),
+    rationale: z.string() }).strict().nullable().default(null),
   recentTraining: LocalTrainingSummarySchema,
   trainingHistory: PlanningHistorySchema.optional(),
   availability: z.object({
@@ -95,6 +100,16 @@ export const PlanningContextSchema = z.object({
     notes: z.array(z.string()),
   }).strict(),
 }).strict().superRefine((value, context) => {
+  if (value.seasonPhase !== (value.developmentBlock?.phase ?? null)) {
+    context.addIssue({ code: "custom", message: "Season phase must reflect the active strategy" });
+  }
+  if (value.blockTransition && value.developmentBlock) context.addIssue({ code: "custom", message: "An active block cannot also require replacement" });
+  if (value.developmentBlock) {
+    const block = value.developmentBlock;
+    const index = weeksBetween(block.startDate, value.targetWeek.startDate);
+    const expectedIndex = index >= 0 && index < block.plannedWeeks ? index : null;
+    if (block.weekIndex !== expectedIndex) context.addIssue({ code: "custom", message: "Block week index differs from target week" });
+  }
   if (calendarWeekday(value.targetWeek.startDate) !== 0 ||
     value.targetWeek.endDate !== addCalendarDays(value.targetWeek.startDate, 7)) {
     context.addIssue({ code: "custom", message: "Target must be a Monday-to-Monday calendar week (exclusive end)" });

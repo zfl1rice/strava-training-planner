@@ -1,10 +1,11 @@
 import type { PlanningContext } from "./planning-context.js";
-import type { StructuredWorkout } from "./structured-workouts.js";
+import { WorkoutTargetSchema, type StructuredWorkout } from "./structured-workouts.js";
 
-/** Percent pace is percent of seconds per distance: higher means slower. */
+/** All percent targets use percentage points: baseline * percent / 100.
+ * Pace scales seconds per distance: higher means slower. */
 export function resolveWorkoutTargets(workout: StructuredWorkout, fitness: PlanningContext["fitness"], generatedAt: string): StructuredWorkout {
   return { ...workout, blocks: workout.blocks.map(block => ({ ...block, segments: block.segments.map(segment => {
-    const target = segment.target;
+    const target = WorkoutTargetSchema.parse(segment.target);
     if (target.metric === "RPE") return { ...segment, resolved: { lower: target.lower, upper: target.upper, unit: "RPE" as const, baseline: null, recordedAt: generatedAt } };
     const runningPace = fitness.definitions.running.thresholdPace;
     const baseline = target.metric === "FTP_PERCENT" ? fitness.effective.cycling.value : target.metric === "MAX_HR_PERCENT" ? fitness.effective.running.value :
@@ -31,7 +32,7 @@ export function targetDescription(segment: StructuredWorkout["blocks"][number]["
 // Conservative classification from the hardest target, independent of provider labels.
 // These thresholds are scheduling policy, not a physiological load calculation.
 export function workoutEffort(workout: StructuredWorkout): StructuredWorkout["effort"] {
-  const targets = workout.blocks.flatMap(block => block.segments.map(segment => segment.target));
+  const targets = workout.blocks.flatMap(block => block.segments.map(segment => WorkoutTargetSchema.parse(segment.target)));
   const hard = targets.some(target => target.metric === "RPE" ? target.upper > 6 : target.metric === "FTP_PERCENT" ? target.upper > 90 : target.metric === "MAX_HR_PERCENT" ? target.upper > 85 : target.lower < 105);
   const moderate = targets.some(target => target.metric === "RPE" ? target.upper > 4 : target.metric === "FTP_PERCENT" ? target.upper > 75 : target.metric === "MAX_HR_PERCENT" ? target.upper > 75 : target.lower < 115);
   return hard ? "HARD" : moderate ? "MODERATE" : "EASY";

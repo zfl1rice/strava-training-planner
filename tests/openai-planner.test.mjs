@@ -3,7 +3,8 @@ import { test, after } from "node:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import OpenAI from "openai";
-import { easyWorkout, generatePlanWithCorrections, ProposalAttemptsExhaustedError, PlanProviderError, PlanningContextSchema } from "@pkg/shared";
+import { easyWorkout, generatePlanWithCorrections, ProposalAttemptsExhaustedError, PlanProviderError, PlanningContextSchema,
+  WorkoutTargetSchema, resolveWorkoutTargets, workoutEffort, finalizePlanProposal, ProposalValidationError } from "@pkg/shared";
 import { prisma, saveWeeklyGoals, generateAndSaveFlexiblePlan, createOrReusePlanRun, executePlanRun } from "@pkg/db";
 import { createOpenAIPlanProvider, OPENAI_PLAN_FORMAT } from "../apps/worker/src/openai-planner.ts";
 import { readPlannerConfig } from "../apps/worker/src/planner-config.ts";
@@ -248,7 +249,8 @@ test("evaluator summary exposes aggregated usage and ordered response IDs, inclu
   for (const expected of ["Scenario: normal-build", `Model: ${config.model}`, "Proposal attempts: 2 | Provider calls: 2",
     "OpenAI response IDs (call order): resp_1, resp_2", "Input tokens: 200", "Cached input: 40", "Output tokens: 100", "Total tokens: 300", "Validation: PASS"]) assert.ok(summary.includes(expected), expected);
   assert.match(summary, /Latency: \d+\.\d s/);
-  assert.ok(!summary.includes("fake-test-key")); assert.ok(!summary.includes("workouts"));
+  assert.ok(!summary.includes("fake-test-key")); assert.ok(!summary.includes('"blocks":'));
+  assert.match(summary, /Attempt 1: INVALID/); assert.match(summary, /Attempt 2: VALID/);
 
   const failed = mockProvider(() => jsonResponse(response(null, { id: "resp_incomplete", status: "incomplete", usage: null })));
   const [failure] = await evaluatePlanner(failed.provider, scenarios);
@@ -256,6 +258,134 @@ test("evaluator summary exposes aggregated usage and ordered response IDs, inclu
   assert.match(failureSummary, /Validation: FAIL/);
   assert.match(failureSummary, /resp_incomplete/);
   for (const label of ["Input tokens", "Cached input", "Output tokens", "Total tokens"]) assert.ok(failureSummary.includes(`${label}: unknown`));
+});
+
+function targetedWorkout(metric, lower, upper, sport = "BIKE") {
+  const workout = easyWorkout("quality-target", "2026-09-08", sport, 30);
+  workout.blocks = [{ repeat: 1, segments: [{ label: "Main effort", instructions: "Follow the numeric target.", seconds: 1800, target: { metric, lower, upper } }] }];
+  return workout;
+}
+
+test("percentage schemas reject fractional encoding per bound while retaining existing valid ranges", () => {
+  for (const metric of ["FTP_PERCENT", "MAX_HR_PERCENT", "THRESHOLD_PACE_PERCENT"]) {
+    for (const value of [0.5, 0.88, 1, 1.05, 2]) {
+      for (const target of [{ metric, lower: value, upper: 92 }, { metric, lower: value, upper: value }]) {
+        const parsed = WorkoutTargetSchema.safeParse(target);
+        assert.equal(parsed.success, false);
+        assert.ok(parsed.error.issues.some(issue => issue.params?.code === "LIKELY_FRACTIONAL_PERCENTAGE" && issue.path[0] === "lower"));
+        assert.match(parsed.error.message, /percentage points/);
+      }
+    }
+    for (const value of [2.01, 10, 50, 88, 100]) assert.ok(WorkoutTargetSchema.safeParse({ metric, lower: value, upper: value }).success);
+    for (const value of [0, -1, NaN, Infinity]) assert.equal(WorkoutTargetSchema.safeParse({ metric, lower: value, upper: 90 }).success, false);
+  }
+  for (const metric of ["FTP_PERCENT", "THRESHOLD_PACE_PERCENT"]) assert.ok(WorkoutTargetSchema.safeParse({ metric, lower: 105, upper: 120 }).success);
+  assert.equal(WorkoutTargetSchema.safeParse({ metric: "MAX_HR_PERCENT", lower: 100, upper: 105 }).success, false);
+  assert.ok(WorkoutTargetSchema.safeParse({ metric: "RPE", lower: 1, upper: 2 }).success);
+  assert.equal(WorkoutTargetSchema.safeParse({ metric: "FTP_PERCENT", lower: 301, upper: 302 }).success, false);
+});
+
+test("percentage-point resolution preserves watts, max-HR, running pace, and both swimming pace units", () => {
+  const { fitness, generatedAt } = input().context;
+  fitness.effective.running.value = 190;
+  fitness.definitions.running.thresholdPace = { value: 300, recordedAt: generatedAt, evidenceIds: [], explanation: null };
+  fitness.effective.swimming.value = 100;
+  const cases = [
+    ["FTP_PERCENT", "BIKE", 88, 92, 220, 230, "WATTS"],
+    ["FTP_PERCENT", "BIKE", 105, 110, 262.5, 275, "WATTS"],
+    ["MAX_HR_PERCENT", "RUN", 80, 90, 152, 171, "BPM"],
+    ["THRESHOLD_PACE_PERCENT", "RUN", 110, 120, 330, 360, "SECONDS_PER_KM"],
+    ["THRESHOLD_PACE_PERCENT", "SWIM", 110, 120, 110, 120, "SECONDS_PER_100M"],
+    ["THRESHOLD_PACE_PERCENT", "SWIM", 110, 120, 110, 120, "SECONDS_PER_100YD"],
+  ];
+  for (const [metric, sport, lower, upper, expectedLower, expectedUpper, unit] of cases) {
+    if (sport === "SWIM") fitness.definitions.swimming.paceUnit = unit;
+    const resolved = resolveWorkoutTargets(targetedWorkout(metric, lower, upper, sport), fitness, generatedAt).blocks[0].segments[0].resolved;
+    assert.deepEqual([resolved.lower, resolved.upper, resolved.unit], [expectedLower, expectedUpper, unit]);
+    const malformed = targetedWorkout(metric, lower / 100, upper / 100, sport);
+    assert.throws(() => resolveWorkoutTargets(malformed, fitness, generatedAt), /percentage points/);
+    assert.throws(() => workoutEffort(malformed), /percentage points/);
+  }
+});
+
+test("fractional targets produce actionable hard errors before finalization; correct quality targets classify HARD", () => {
+  const candidate = { version: 1, explanation: "Meaningful cycling intervals", workouts: [targetedWorkout("FTP_PERCENT", 0.88, 0.92)] };
+  assert.throws(() => finalizePlanProposal(input(), candidate), error => {
+    assert.ok(error instanceof ProposalValidationError);
+    assert.equal(error.issues[0].code, "LIKELY_FRACTIONAL_PERCENTAGE");
+    assert.equal(error.issues[0].workoutId, "quality-target");
+    assert.deepEqual(error.issues[0].path, ["workouts", 0, "blocks", 0, "segments", 0, "target", "lower"]);
+    return true;
+  });
+  assert.equal(candidate.workouts[0].blocks[0].segments[0].target.lower, 0.88);
+  candidate.workouts[0] = targetedWorkout("FTP_PERCENT", 88, 92);
+  const plan = finalizePlanProposal(input(), candidate);
+  const workout = plan.days.find(day => day.kind === "WORKOUT");
+  assert.equal(workout.effort, "HARD");
+  assert.equal(workout.blocks[0].segments[0].resolved.lower, 220);
+  assert.equal(plan.analysis.hardSessions.bySport.BIKE, 1);
+});
+
+test("SDK schema carries percentage descriptions and correction loop exposes unit failure then success", async () => {
+  assert.match(JSON.stringify(OPENAI_PLAN_FORMAT.schema), /percentage points/);
+  assert.match(PLANNER_INSTRUCTIONS, /88 means 88%; never encode 88% as 0.88/);
+  const mock = mockProvider((body, _, count) => {
+    if (count === 2) {
+      const correction = JSON.parse(body.input[0].content).correction;
+      assert.equal(correction.errors[0].code, "LIKELY_FRACTIONAL_PERCENTAGE");
+      assert.equal(correction.errors[0].workoutId, "quality-target");
+      assert.equal(correction.previousProposal.workouts[0].blocks[0].segments[0].target.lower, 0.88);
+    }
+    return jsonResponse(response({ version: 1, explanation: "Useful cycling work", workouts: [targetedWorkout("FTP_PERCENT", count === 1 ? 0.88 : 88, count === 1 ? 0.92 : 92)] }));
+  });
+  const [result] = await evaluatePlanner(mock.provider, [{ id: "unit-regression", input: input() }]);
+  assert.deepEqual(result.attempts.map(attempt => attempt.status), ["INVALID", "VALID"]);
+  const summary = formatEvaluationSummary(result);
+  assert.match(summary, /Attempt 1: INVALID/);
+  assert.match(summary, /LIKELY_FRACTIONAL_PERCENTAGE.*quality-target.*workouts.0.blocks.0.segments.0.target.lower/);
+  assert.match(summary, /Attempt 2: VALID/);
+  assert.equal(result.analysis.hardSessions.total, 1);
+});
+
+test("evaluator retains all three invalid attempts and distinguishes provider failure from validation", async () => {
+  const invalid = { version: 1, explanation: "Invalid units", workouts: [targetedWorkout("FTP_PERCENT", 0.88, 0.92)] };
+  const [result] = await evaluatePlanner(() => invalid, [{ id: "invalid-units", input: input() }]);
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.attempts.map(attempt => attempt.status), ["INVALID", "INVALID", "INVALID"]);
+  assert.match(formatEvaluationSummary(result), /Attempt 3: INVALID/);
+  const [failure] = await evaluatePlanner(() => { throw new PlanProviderError("INCOMPLETE", "Incomplete response"); }, [{ id: "provider-failure", input: input() }]);
+  assert.equal(failure.attempts[0].status, "NOT_VALIDATED");
+  assert.match(formatEvaluationSummary(failure), /INCOMPLETE/);
+});
+
+test("malformed percentage proposals cannot overwrite a persisted plan", async () => {
+  const { user, before, run } = await userAndRun();
+  const result = await executePlanRun(run.id, snapshot => ({ version: 1, explanation: "Malformed percentage", workouts: [
+    { ...targetedWorkout("FTP_PERCENT", 0.88, 0.92), date: snapshot.context.targetWeek.startDate },
+  ] }));
+  assert.equal(result.status, "FAILED");
+  assert.deepEqual((await prisma.weeklyPlan.findFirstOrThrow({ where: { userId: user.id } })).content, before.content);
+});
+
+test("general-fitness retains no-block coverage; active-block fixture reaches the SDK and evaluator header", async () => {
+  const scenarios = planningScenarios();
+  assert.equal(scenarios.find(scenario => scenario.id === "general-fitness").input.context.developmentBlock, null);
+  const scenario = scenarios.find(scenario => scenario.id === "general-fitness-active-block");
+  const mock = mockProvider(body => {
+    const planning = JSON.parse(body.input[0].content).planning;
+    assert.equal(planning.planningObjective.mode, "GENERAL_FITNESS");
+    assert.equal(planning.developmentBlock.weekIndex, 1);
+    assert.equal(planning.developmentBlock.weekRole, "DEVELOPMENT");
+    assert.equal(planning.developmentBlock.focuses[0].progressionStrategy, "LONG_SESSION");
+    return jsonResponse(response(proposal()));
+  });
+  const [result] = await evaluatePlanner(mock.provider, [scenario]);
+  const summary = formatEvaluationSummary(result);
+  for (const value of ["Planning objective: GENERAL_FITNESS", "Season phase: GENERAL_PREPARATION", "week 2 / 4", "Role: DEVELOPMENT",
+    "PRIMARY: RUN / LONG_ENDURANCE; progression: LONG_SESSION", "SECONDARY: BIKE / THRESHOLD; progression: TIME_AT_INTENSITY",
+    "MAINTENANCE: SWIM / SUSTAINED_ENDURANCE; progression: MAINTAIN"]) assert.ok(summary.includes(value), value);
+  assert.deepEqual(result.plan.developmentBlock, scenario.input.context.developmentBlock);
+  assert.ok(!summary.includes(scenario.input.context.recentFeedback[0].comment));
 });
 
 test("CLI prints a readable summary separately from parseable JSON and stays local without --openai", () => {

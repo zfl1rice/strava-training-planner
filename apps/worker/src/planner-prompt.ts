@@ -9,6 +9,78 @@ structured intervals, recovery, and relative intensity.
 Return only the structured proposal required by the response schema.
 
 ==================================================
+PERSISTENT DEVELOPMENT STRATEGY
+Block-level decisions control lifecycle; previousReview.request.focusGuidance controls
+which capability may progress. Global PROGRESS is not permission to progress every focus.
+Global HOLD pauses progression except for an explicit, narrowly justified per-focus
+PROGRESS exception in that review; never invent an exception from the calendar alone.
+For each matching sport/capability: PROGRESS permits the smallest useful change in its
+declared progressionStrategy; HOLD preserves similar stimulus without deliberately
+increasing that variable, but does not require an identical workout; MAINTAIN provides
+enough exposure to preserve capability without making it a development priority.
+Prioritize PRIMARY; SECONDARY/MAINTENANCE must not dominate simply because they fit
+the schedule. Multiple progressions are allowed when individually justified and coherent.
+Week role remains authoritative: RECOVERY, TAPER, RACE and RETURN override normal
+focus progression. Legacy reviews without focusGuidance supply no implicit permission
+to progress all focuses; use available response and acknowledge missing guidance.
+Review evidence distinguishes prescribed, reported-completed planned minutes, and
+linked recorded activity. Null recorded values are unknown, not zero. Unlinked totals
+and legacy review activityMinutes/actualMinutes describe background activity, not
+verified execution of prescribed workouts. Reported completion is not measured tolerance.
+Missing recovery evidence is not evidence of good recovery.
+==================================================
+
+seasonPhase describes the broad season/macrocycle context. developmentBlock is the
+persistent multi-week strategy; your task is to turn it into this week's sessions,
+not independently reinvent the athlete's development priorities every Sunday.
+When no block is supplied, use the existing weekly planning behavior.
+When weekRole is null, the block does not cover this week: a block review or
+replacement is required. Do not invent a new cycle or independent development strategy.
+
+Use each focus's PRIMARY, SECONDARY, or MAINTENANCE role to distinguish key
+development work, useful supporting work, and sufficient maintenance exposure.
+Do not abandon the focus without supplied context justifying it. Hard restrictions,
+availability and protected workouts always take precedence over block strategy.
+Race references identify real events in races; importance is a preference signal,
+not a percentage allocation. General fitness needs meaningful successive blocks,
+not an invented race or permanent race-style base phase.
+
+DEVELOPMENT: continuity is the default when change is not justified, not the final
+objective. With supplied evidence of an appropriate response and useful adaptation,
+progress the intended progressionStrategy using the smallest useful number of
+variables. Do not increase volume, frequency, longest session, repetitions, interval
+duration and intensity together. Extra availability alone does not justify progression.
+MAINTAIN means sufficient exposure, not automatic progression or token workouts.
+RECOVERY: dissipate accumulated fatigue and prepare for productive development,
+retaining useful exposure where appropriate. Do not mechanically scale every session.
+TAPER: prepare for the referenced race by reducing fatigue while preserving suitable
+race-relevant sharpness. Recovery and taper have different purposes.
+RACE: account for the supplied event and surrounding training; do not invent results.
+RETURN: reintroduce training using established history and current constraints without
+assuming immediate tolerance of the full previous workload.
+
+The previousReview contains an explicitly supplied decision and recorded evidence.
+Check its dates: an old PROGRESS decision is not perpetual permission to increase.
+PROGRESS targets the intended variable; HOLD retains useful stimulus without assuming
+lost fitness. RECOVER_EARLY and CONTINUE_RECOVERY permit adaptive timing. Respect the
+resolved weekRole; do not use weekIndex modulo four or universal reduction percentages.
+Comments are athlete reports, not medical diagnoses or automatic baseline updates.
+Missing evidence is not a weakness; recorded history is not guaranteed tolerance.
+
+A DEVELOPMENT calendar label alone never justifies progression. Use the latest
+applicable review and supplied athlete response. PROGRESS permits the smallest useful
+change in the declared strategy, not a required increase in total volume. HOLD means
+preserve a similar block stimulus rather than deliberately progressing it; scheduling
+and workout details may vary, so HOLD does not require an identical week. Recovery
+and RETURN roles still govern the week's purpose. Without a review, consider available
+response evidence and uncertainty; do not invent permission from the week number.
+
+Block roles do not change saved goals. Weekly time goals remain desired training,
+not availability ceilings. Explain material departures with concrete context, including
+recovery or taper needs. Minimum effective dose means enough useful stimulus without
+low-value excess, never a blanket instruction to prescribe less.
+
+==================================================
 DECISION PRIORITY
 ==================================================
 
@@ -372,6 +444,8 @@ Use supported relative targets:
 - running threshold-pace percentage,
 - swimming threshold-pace percentage.
 
+All *_PERCENT targets use percentage points: 88 means 88%; never encode 88% as 0.88.
+
 If the baseline required for a quantitative target is unavailable, use RPE or
 another supported target.
 
@@ -404,6 +478,19 @@ Use null templateId for custom workouts.
 Do not invent exact start times. Scheduling is by date, so exact recovery hours are unknown.
 
 Workout duration and description must agree.
+
+Design the primary stimulus first. Do not use disproportionately long warm-ups or
+cool-downs merely to fill the desired session duration. Use preparation and finishing
+durations appropriate to the workout's demands, with no universal minute cap. If
+remaining time would be useful, allocate it to purposeful aerobic, endurance,
+technique, or other support work that complements the stimulus. If it adds little
+value, explain a justified soft-target departure instead of padding the session;
+weekly goals still represent desired training, not merely available capacity.
+
+Match titles and intensity descriptions to the numeric work prescribed. Do not call
+substantially sub-threshold work "threshold" casually; use a suitable sub-threshold
+description relative to supplied zones/targets. Do not change useful intensity solely
+to satisfy a title, invent a new zone taxonomy, or override numeric target resolution.
 
 Do not describe a long session as "short" or "brief."
 
@@ -541,6 +628,7 @@ export function buildOpenAIPlanningInput(raw: GenerationInput) {
   return {
     generatedAt: context.generatedAt, timeZone: context.athlete.timeZone,
     targetWeek: context.targetWeek, replaceFromDate: input.fromDate, planningObjective: context.planningObjective,
+    seasonPhase: context.seasonPhase, developmentBlock: context.developmentBlock,
     goals: context.goals, adjustedTargets, sportPlanningSummary,
     availability: context.availability.days.map(day => ({ date: day.date, settings: day.settings, note: day.note })),
     restrictions: context.restrictions, adjustments: context.adjustments,
@@ -548,7 +636,7 @@ export function buildOpenAIPlanningInput(raw: GenerationInput) {
       zones: { cycling: context.fitness.definitions.cycling.zones, running: context.fitness.definitions.running.zones, swimming: context.fitness.definitions.swimming.zones } },
     performanceProfile: context.performanceProfile,
     recentTraining: context.recentTraining, trainingHistory: context.trainingHistory ?? null,
-    races: context.races.map(race => race.goal), feedback: context.recentFeedback, feedbackTruncated: context.feedbackTruncated,
+    races: context.races.map(race => ({ id: race.id, ...race.goal })), feedback: context.recentFeedback, feedbackTruncated: context.feedbackTruncated,
     protectedWorkouts: input.protectedWorkouts.map(workout => compactWorkout({ ...workout, steps: [] })),
     currentWorkouts: context.existingPlans.filter(plan => plan.content.weekStart.slice(0, 10) === context.targetWeek.startDate)
       .flatMap(plan => calendarWorkouts(plan.content).map(compactWorkout)),

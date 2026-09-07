@@ -35,6 +35,12 @@
     "evaluate:planner:openai": "npm run build:packages && npm run build --workspace @app/worker && node scripts/evaluate-planner.mjs --openai",
     "test:openai": "npm run build:packages && node scripts/test-strava.mjs openai",
     "test:settings": "npm run build:packages && node scripts/test-strava.mjs settings",
+    "test:blocks": "npm run build:packages && node scripts/test-strava.mjs blocks",
+    "evaluate:blocks": "npm run build:packages && node scripts/evaluate-blocks.mjs",
+    "test:block-reviews": "npm run build:packages && node scripts/test-strava.mjs reviews",
+    "evaluate:block-review": "npm run build:packages && node scripts/evaluate-block-reviews.mjs",
+    "evaluate:block-review:openai": "npm run build:packages && npm run build --workspace @app/worker && node scripts/evaluate-block-reviews.mjs --openai",
+    "blocks": "npm run build:packages && node scripts/manage-blocks.mjs",
     "db:generate": "npm exec --workspace @pkg/db -- prisma generate",
     "db:deploy": "npm exec --workspace @pkg/db -- prisma migrate deploy"
   },

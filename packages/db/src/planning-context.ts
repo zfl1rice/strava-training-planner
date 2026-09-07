@@ -1,5 +1,5 @@
 import {
-  calendarWorkouts, validateStoredPlan, AthleteProfileSchema, CAPABILITIES, CapabilitySchema, ExistingContextPlanSchema,
+  activeBlockForWeek, calendarWorkouts, validateStoredPlan, AthleteProfileSchema, CAPABILITIES, CapabilitySchema, ExistingContextPlanSchema,
   LocalDateSchema, PerformanceEvidenceSchema, PlanningContextSchema, PlanningTimestampSchema, RaceGoalSchema,
   TimeZoneSchema, WorkoutStatesSchema, addCalendarDays, calendarMonday, calendarWeekday,
   summarizePlanningHistory, workoutEffort, defaultDayAvailability, emptyAthleteProfile, localDateAt, summarizeTraining,
@@ -9,6 +9,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./client.js";
 import { getWeeklyGoals } from "./planner.js";
 import { lockUserTraining } from "./training-lock.js";
+import { getActiveDevelopmentBlock } from "./development-blocks.js";
 
 function profileEvidenceIds(profile: AthleteProfile): number[] {
   return [...new Set([
@@ -171,12 +172,22 @@ export async function buildPlanningContext(
     });
     const notes = ["Existing v1 plans retain their original UTC dates and fixed scheduling policy; they are not rescheduled by this context builder.",
       "Derived zone formulas, capability scoring, and baseline estimation are not calculated in this milestone."];
+    const activeBlock = await getActiveDevelopmentBlock(userId, database);
+    const developmentBlock = activeBlock ? activeBlockForWeek(activeBlock, startDate) : null;
+    const lastBlock = !activeBlock ? await database.developmentBlock.findFirst({ where: { userId }, orderBy: { id: "desc" },
+      select: { id: true, status: true } }) : null;
+    const blockTransition = lastBlock && lastBlock.status !== "ACTIVE" ? { blockId: lastBlock.id, status: lastBlock.status,
+      rationale: lastBlock.status === "COMPLETED" ? "The block is complete. Select the next development block before generating another week."
+        : "The previous strategy was invalidated. Create a replacement block before normal development continues." } : null;
+    if (developmentBlock?.weekRole === null) notes.push("The active block does not cover this target week. Review, extend, complete, or replan it; do not assume automatic progression or repeat its cycle.");
     if (days.some(day => day.source === "DEFAULT")) notes.push("Days without saved availability allow all sports, pool access, and three sessions with no additional daily time cap. Weekly goals determine volume; edit availability to restrict these defaults.");
     if (!connection?.lastSuccessfulSyncAt) notes.push("No successful activity sync is recorded; training history may be incomplete.");
     if (latestSync?.status === "FAILED" || unfinishedSync) notes.push("Activity sync is failed or unfinished; stored history may be partial.");
 
     return PlanningContextSchema.parse({
       version: 1, generatedAt: now.toISOString(), athlete: user, targetWeek: { startDate, endDate }, goals,
+      developmentBlock, seasonPhase: developmentBlock?.phase ?? null,
+      blockTransition,
       fitness: resolveFitness(profile),
       performanceProfile: {
         cycling: capabilities("BIKE"), running: capabilities("RUN"), swimming: capabilities("SWIM"),

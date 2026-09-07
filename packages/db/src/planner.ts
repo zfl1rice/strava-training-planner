@@ -110,12 +110,14 @@ export async function generateAndSaveWeeklyPlan(userId: number, now = new Date()
 
 
 export class StaleGenerationError extends Error {
-  constructor() { super("Planning inputs changed. Request generation again; the existing plan was kept."); }
+  constructor(message = "Planning inputs changed. Request generation again; the existing plan was kept.") { super(message); }
 }
 
 // Caller holds the per-athlete training lock for this short read transaction.
 export async function prepareGenerationInput(userId: number, now: Date, weekStartDate: string, database: Prisma.TransactionClient): Promise<GenerationInput> {
   const context = await buildPlanningContext(userId, { now, weekStart: weekStartDate }, database);
+  if (context.blockTransition) throw new StaleGenerationError(context.blockTransition.rationale);
+  if (context.developmentBlock?.weekRole === null) throw new StaleGenerationError("Review, extend, or replace the active block before generating an uncovered week.");
   const today = localDateAt(now, context.athlete.timeZone);
   if (addCalendarDays(weekStartDate, 7) <= today) throw new StaleGenerationError();
   if (context.dataQuality.syncInProgress) throw new PlanSyncInProgressError("Wait for activity sync to finish before generating a plan.");

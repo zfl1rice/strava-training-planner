@@ -1,5 +1,16 @@
+> Latest refinement: [explicit review evidence and per-focus guidance](block-review-focus-guidance.md).
+> Block lifecycle decisions now remain separate from selective capability progression.
+
+> Previous implementation: [adaptive block-review design](adaptive-block-reviews.md).
+> Explicit reviews now persist evidence/decisions and guide future weeks. Terminal or
+> uncovered blocks require review/replacement; live review dispatch is not enabled.
+
 > Current generation semantics: see [AI readiness checkpoint](ai-readiness.md).
 > It supersedes earlier hard-session/goal-cap rules for provider validation.
+
+> September 7: [Persistent development blocks](development-blocks.md) now supply
+> season phase, multi-week emphasis, and explicit review decisions to the working
+> weekly OpenAI planner. Earlier statements below that AI is absent are historical.
 
 # Triathlon training planner — detailed design
 

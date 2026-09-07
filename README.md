@@ -15,6 +15,10 @@ Old v1 plans remain readable. The [OpenAI planner](docs/openai-planner.md) is no
 wired into the worker and is opt-in; deterministic generation remains the default.
 Normal tests and local evaluation make no paid model calls.
 
+The [development-block foundation](docs/development-blocks.md) adds persistent
+multi-week emphasis, explicit reviews, and weekly strategy context. Start there
+for the file review map and local `blocks` commands. Automatic block AI is deferred.
+
 ## Strava connection setup
 
 OAuth and token refresh are implemented. A real connection requires your own
@@ -368,6 +372,11 @@ Shared packages export compiled JavaScript. After editing a shared package,
 restart `npm run dev` or run its `build:watch` script in another terminal.
 
 See [the MVP checklist](docs/mvp-status.md) for completed and pending milestones.
+See [adaptive block reviews](docs/adaptive-block-reviews.md) for the evidence/decision
+loop, local review commands, and opt-in live evaluation. Production review jobs and
+automatic scheduling are still deferred.
+The latest [review evidence and focus-guidance report](docs/block-review-focus-guidance.md)
+explains reported versus recorded execution and selective primary/secondary progression.
 See [the product vision](docs/product-vision.md) for scope and future direction.
 See [the detailed design document](docs/design.md) for current data flows, planning
 rules, failure behavior, proposed next steps, and a decision register for review.

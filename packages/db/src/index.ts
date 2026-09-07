@@ -9,3 +9,5 @@ export * from "./planning-settings.js";
 
 export * from "./workout-feedback.js";
 export * from "./plan-jobs.js";
+export * from "./development-blocks.js";
+export * from "./block-reviews.js";

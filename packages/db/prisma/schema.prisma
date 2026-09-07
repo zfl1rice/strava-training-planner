@@ -16,6 +16,7 @@ model User {
   athleteProfile AthleteProfile?
   raceGoals RaceGoal[]
   performanceEvidence PerformanceEvidence[]
+  developmentBlocks DevelopmentBlock[]
 
   activities Activity[]
   jobRuns    JobRun[]
@@ -31,6 +32,45 @@ model WeeklyGoals {
   runMinutes Int?
   bikeMinutes Int?
   swimMinutes Int?
+}
+
+model DevelopmentBlock {
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime @db.Date
+  plannedEndDate DateTime @db.Date
+  phase String
+  status DevelopmentBlockStatus @default(ACTIVE)
+  revision Int @default(1)
+  // Original proposal is immutable. Reviews append decisions and future pattern changes.
+  content Json
+  reviews DevelopmentBlockReview[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, startDate])
+  // A partial unique index in the migration permits only one ACTIVE block per athlete.
+}
+
+model DevelopmentBlockReview {
+  id Int @id @default(autoincrement())
+  blockId Int
+  block DevelopmentBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  revision Int
+  reviewedWeekStart DateTime @db.Date
+  effectiveWeekStart DateTime @db.Date
+  decision String
+  content Json
+  createdAt DateTime @default(now())
+
+  @@unique([blockId, revision])
+}
+
+enum DevelopmentBlockStatus {
+  ACTIVE
+  COMPLETED
+  ABORTED
 }
 
 model WeeklyPlan {

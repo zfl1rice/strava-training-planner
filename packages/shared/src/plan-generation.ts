@@ -11,7 +11,8 @@ import { resolveWorkoutTargets, workoutEffort } from "./workout-targets.js";
 export const GenerationInputSchema = z.object({
   version: z.literal(1), context: PlanningContextSchema, fromDate: LocalDateSchema,
   protectedWorkouts: z.array(StructuredWorkoutSchema).max(168),
-}).strict().refine(input => input.fromDate >= input.context.targetWeek.startDate && input.fromDate < input.context.targetWeek.endDate, "Replacement must start inside the target week");
+}).strict().refine(input => input.fromDate >= input.context.targetWeek.startDate && input.fromDate < input.context.targetWeek.endDate, "Replacement must start inside the target week")
+  .refine(input => !input.context.blockTransition && input.context.developmentBlock?.weekRole !== null, "Review or replace the block before generating this week");
 export type GenerationInput = z.infer<typeof GenerationInputSchema>;
 export const PlanProposalSchema = z.object({
   version: z.literal(1), explanation: z.string().trim().min(1).max(8000),
@@ -20,6 +21,7 @@ export const PlanProposalSchema = z.object({
   workouts: z.array(StructuredWorkoutSchema).max(168),
 }).strict();
 export type ProposalIssue = { code: string; path: (string | number)[]; message: string; workoutId?: string };
+export type ProposalValidationResult = { attempt: number; valid: boolean; issues: ProposalIssue[] };
 export class ProposalValidationError extends Error {
   constructor(public readonly issues: ProposalIssue[]) {
     super(issues.map(issue => issue.message).join("; "));
@@ -45,7 +47,12 @@ export function deterministicPlanProvider(input: GenerationInput) {
 export function finalizePlanProposal(rawInput: GenerationInput, response: unknown) {
   const input = GenerationInputSchema.parse(rawInput);
   const parsed = PlanProposalSchema.safeParse(response);
-  if (!parsed.success) throw new ProposalValidationError(parsed.error.issues.map(issue => ({ code: "SCHEMA", path: issue.path, message: issue.message })));
+  if (!parsed.success) throw new ProposalValidationError(parsed.error.issues.map(issue => {
+    const workouts = response && typeof response === "object" && "workouts" in response ? response.workouts : null;
+    const workout = Array.isArray(workouts) && typeof issue.path[1] === "number" ? workouts[issue.path[1]] : null;
+    return { code: issue.code === "custom" && issue.params?.code === "LIKELY_FRACTIONAL_PERCENTAGE" ? issue.params.code : "SCHEMA",
+      path: issue.path, message: issue.message, ...(typeof workout?.id === "string" ? { workoutId: workout.id } : {}) };
+  }));
   const proposal = parsed.data;
   const { context, protectedWorkouts } = input;
   const protectedIds = new Set(protectedWorkouts.map(workout => workout.id));
@@ -86,6 +93,7 @@ export function finalizePlanProposal(rawInput: GenerationInput, response: unknow
     if (retained > adjustedTargets[sport]) assumptions.push(`${sport}: protected workouts already exceed the adjusted target and were retained.`);
   }
   const result = FlexiblePlanSchema.safeParse({ version: 2, timeZone: context.athlete.timeZone,
+    ...(context.developmentBlock ? { developmentBlock: context.developmentBlock } : {}),
     weekStart: `${context.targetWeek.startDate}T00:00:00.000Z`, weekEnd: `${context.targetWeek.endDate}T00:00:00.000Z`,
     sourceGeneratedAt: context.generatedAt,
     sourceWeekStarts: context.recentTraining.weeks.filter(week => !week.isCurrentWeek).map(week => `${week.weekStart}T00:00:00.000Z`),
@@ -110,21 +118,27 @@ export function runPlanGeneration(context: PlanningContext, fromDate: string, pr
 // Each correction sees the same validated snapshot and only actionable proposal
 // errors. Provider/network exceptions escape to the infrastructure retry layer.
 export async function generatePlanWithCorrections(rawInput: GenerationInput, provider: PlanProvider = deterministicPlanProvider,
-  execution: Pick<ProposalAttempt, "signal" | "reportCall"> = {}) {
+  execution: Pick<ProposalAttempt, "signal" | "reportCall"> & { reportValidation?: (result: ProposalValidationResult) => void | Promise<void> } = {}) {
   const input = GenerationInputSchema.parse(rawInput);
+  const { reportValidation, ...providerExecution } = execution;
   let previousErrors: ProposalIssue[] = [];
   let previousProposal: unknown;
   for (let attempt = 1; attempt <= MAX_PROPOSAL_ATTEMPTS; attempt++) {
     execution.signal?.throwIfAborted();
-    const response = await provider(structuredClone(input), { ...execution, attempt,
+    const response = await provider(structuredClone(input), { ...providerExecution, attempt,
       previousErrors: structuredClone(previousErrors), previousProposal: structuredClone(previousProposal) });
     execution.signal?.throwIfAborted();
-    try { return finalizePlanProposal(input, response); }
+    let plan;
+    try { plan = finalizePlanProposal(input, response); }
     catch (error) {
       if (!(error instanceof ProposalValidationError)) throw error;
       previousErrors = error.issues;
       previousProposal = response;
+      await reportValidation?.({ attempt, valid: false, issues: structuredClone(previousErrors) });
+      continue;
     }
+    await reportValidation?.({ attempt, valid: true, issues: [] });
+    return plan;
   }
   throw new ProposalAttemptsExhaustedError(previousErrors, MAX_PROPOSAL_ATTEMPTS);
 }

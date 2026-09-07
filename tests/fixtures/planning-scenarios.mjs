@@ -1,6 +1,7 @@
 import {
   PlanningContextSchema, GenerationInputSchema, emptyAthleteProfile, defaultDayAvailability,
   summarizeTraining, summarizePlanningHistory, calendarMonday, addCalendarDays, easyWorkout, generateFlexiblePlan,
+  DevelopmentBlockSchema, activeBlockForWeek,
 } from "@pkg/shared";
 
 // Synthetic fixtures: no application records, tokens, network, or exact-plan oracle.
@@ -72,6 +73,24 @@ export function hardWorkout(id, date, sport = "BIKE", minutes = 30) {
 const definitions = [
   ["normal-build", "Normal 70.3 build week", () => {}],
   ["general-fitness", "No race: sustainable triathlon development within desired weekly goals", input => { input.context.races = []; }],
+  ["general-fitness-active-block", "General fitness: week two of a persistent run-durability block", input => {
+    input.context.races = [];
+    const rationale = "Synthetic explicit strategy: develop run durability, support cycling threshold, and maintain swim endurance. Progress only the smallest useful variable supported by response evidence.";
+    const block = DevelopmentBlockSchema.parse({ id: 101, userId: input.context.athlete.id, revision: 1, status: "ACTIVE",
+      createdAt: "2026-08-30T12:00:00.000Z", updatedAt: "2026-08-30T12:00:00.000Z", reviews: [],
+      proposal: { version: 1, startDate: "2026-08-31", phase: "GENERAL_PREPARATION", raceIds: [], rationale,
+        weekPattern: ["DEVELOPMENT", "DEVELOPMENT", "DEVELOPMENT", "RECOVERY"], focuses: [
+          { sport: "RUN", capability: "LONG_ENDURANCE", role: "PRIMARY", progressionStrategy: "LONG_SESSION", rationale: "The supplied emphasis is run durability; preserve useful stimulus while considering a small long-session progression." },
+          { sport: "BIKE", capability: "THRESHOLD", role: "SECONDARY", progressionStrategy: "TIME_AT_INTENSITY", rationale: "Useful secondary threshold development; do not simultaneously increase all cycling variables." },
+          { sport: "SWIM", capability: "SUSTAINED_ENDURANCE", role: "MAINTENANCE", progressionStrategy: "MAINTAIN", rationale: "Maintain sufficient swim exposure while the main development emphasis is elsewhere." },
+        ] },
+    });
+    input.context.developmentBlock = activeBlockForWeek(block, input.context.targetWeek.startDate);
+    input.context.seasonPhase = block.proposal.phase;
+    input.context.recentFeedback = [{ date: "2026-09-04", sport: "RUN", title: "Easy endurance run", completion: "COMPLETED", rpe: 3,
+      comment: "Synthetic athlete report: completed the recent runs comfortably and recovered normally; willing to try a small long-run progression without adding another session." }];
+    input.context.dataQuality.notes.push("Synthetic block strategy and athlete response, not an inferred capability weakness or proof of tolerance. Weekly goals remain desired training; block adherence requires human review beyond structural validation.");
+  }],
   ["asymmetric-evidence", "Supplied synthetic capability assessments support bike maintenance and run development", input => {
     const profile = input.context.performanceProfile;
     const common = { confidence: "MEDIUM", trend: "STABLE", updatedAt: input.context.generatedAt, methodVersion: "synthetic-assessment-v1" };

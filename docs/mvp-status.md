@@ -1,5 +1,85 @@
 # Pre-AI MVP status
 
+## September 7: immutable BlockReview focus references
+
+- [x] Reused the block-scoped sport/capability key as a deterministic server-provided `focusId`.
+- [x] Model guidance contains only ID/action/rationale; exact allowed IDs and focus count constrain Structured Outputs.
+- [x] Server validates complete coverage and reconstructs sport/capability/role/progression strategy.
+- [x] Correction feedback lists missing/unknown/duplicate IDs and the exact allowed set within the existing three-attempt loop.
+- [x] New JSON review writes retain resolved identity; old reviews stay readable and unchanged. No migration needed.
+- [x] Weekly context and evaluator receive resolved metadata; coaching semantics and evidence calculations unchanged.
+- [x] 238 tests, all 22 free review scenarios, 21 weekly and 18 strategic scenarios, TypeScript, lint, production build.
+- [ ] Manual paid rerun of `continue-recovery`: command documented; not run during implementation.
+
+See the [identity audit, contracts, file map, and rerun command](block-review-focus-identity.md).
+
+## September 7: BlockReview decision-boundary scenarios
+
+- [x] Reused all six requested boundaries; four canonical names changed, with old CLI names retained as aliases.
+- [x] Stronger early-recovery evidence, role-consistent reduced recovery prescriptions, and a materially different near-term race.
+- [x] Reported completion remains separate from linked execution; all six boundaries explicitly leave execution unknown.
+- [x] Compact result/reference decisions, focus actions, non-authoritative comparisons, feedback, and next-role output.
+- [x] Mocked SDK checks prove reference answers are not sent to the reviewer; valid alternatives do not fail evaluation.
+- [x] 233 tests, all 22 free review scenarios, 21 weekly and 18 strategic scenarios, TypeScript, lint, production build.
+- [ ] Manual paid boundary evaluations: commands documented in recommended order; none run during implementation.
+
+See the [boundary audit, evidence tables, reference outcomes, and commands](block-review-boundaries.md).
+
+## September 7: review evidence and focus-level progression
+
+- [x] Separate prescribed, reported-completed planned, linked recorded, and unlinked background activity totals.
+- [x] Unknown linked execution remains null; partial/full coverage has explicit identities and counts.
+- [x] Required per-focus PROGRESS/HOLD/MAINTAIN guidance; global lifecycle decision remains separate.
+- [x] Primary can progress while secondary holds; multiple progressions remain possible when justified.
+- [x] Guidance persists with immutable review history and reaches the next weekly input.
+- [x] Prompts require evidence attribution and keep week roles authoritative.
+- [x] V1 `actualMinutes` and guidance-free historical reviews remain readable without fabricating execution.
+- [x] 224 tests; 21 weekly, 18 strategic block, and 22 review free scenarios; TypeScript, lint, production build.
+- [ ] Production workout linking and live review jobs remain deferred; linked scenarios use synthetic explicit links.
+- [ ] Manual paid rerun of `successful-run-block`: command and reference result in the report; no paid calls made.
+
+See the [audit, evidence contract, file map, and manual evaluation instructions](block-review-focus-guidance.md).
+
+## September 7: adaptive block-review checkpoint
+
+- [x] Purposeful workout-construction and title/intensity guidance without hard duration caps.
+- [x] Owned `BlockReviewContext` with calculated activity facts, reported states, feedback, and uncertainty.
+- [x] Six decisions, append-only evidence/source history, future role changes, and next-week context integration.
+- [x] Guarded explicit local review service; changed evidence/revisions reject stale results.
+- [x] Terminal/uncovered blocks require review or replacement before normal weekly generation.
+- [x] Separate reviewer contract and opt-in OpenAI evaluator sharing the existing Responses transport.
+- [x] 218 tests; 21 weekly, 18 block, and 18 review free scenarios; TypeScript, lint, Prisma checks, production build.
+- [ ] Production persistent review jobs and automatic boundary scheduling: intentionally deferred.
+- [ ] Live coaching-quality evaluation: exact opt-in command documented; no paid calls made.
+
+See [implementation details, commands, and file review map](adaptive-block-reviews.md).
+
+## September 7: target-unit validation and evaluation visibility
+
+- [x] Percentage points enforced for FTP, max HR, and shared run/swim pace targets.
+- [x] Likely fractional encodings rejected with actionable correction errors; no silent conversion.
+- [x] Regression coverage for absolute targets, effort classification, and persistence protection.
+- [x] Per-attempt validation summaries and active-block strategy headers.
+- [x] Separate `general-fitness-active-block` fixture; no-block fixture preserved.
+- [x] 202 tests, 21 free weekly scenarios, 18 block fixtures, typechecks, lint, and production build.
+- [ ] Human coaching-quality review of the active-block live output: manual paid evaluation only.
+
+See the [audit and manual evaluation command](planner-target-units.md).
+
+## September 7: development-block foundation
+
+- [x] Shared phase, focus, progression, week-role, decision, and lifecycle schemas.
+- [x] Owned persistent blocks, append-only reviews, and one-active-block constraint.
+- [x] Strategic context and guided deterministic BlockPlanner; no automatic paid calls.
+- [x] Weekly context/prompt integration and saved strategy provenance.
+- [x] Flexible recovery patterns and stale-generation protection.
+- [x] Local preview/create/replan/review commands and 18 strategic fixtures.
+- [x] 195 tests, 20 weekly evaluations, typechecks, lint, Prisma checks, and production build.
+- [x] Additive migration applied locally; no real block or workout created.
+- [ ] Automatic live block generation/reviews and future athlete-analysis systems: intentionally deferred.
+
+See the [design, usage instructions, and review map](development-blocks.md).
+
 The [detailed design draft](design.md) documents current behavior and open decisions.
 Proposals in that document do not change the implementation status below.
 

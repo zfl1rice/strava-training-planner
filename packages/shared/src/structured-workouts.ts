@@ -1,4 +1,5 @@
 import { PlanningAnalysisSchema } from "./planning-deviations.js";
+import { ActiveDevelopmentBlockSchema } from "./development-block.js";
 import { PlanProvenanceSchema } from "./provider-call.js";
 import { targetDescription } from "./workout-targets.js";
 import { z } from "zod";
@@ -6,9 +7,22 @@ import { PlanSportSchema, WeeklyPlanSchema, validateWeeklyPlan, type WeeklyPlan 
 import { LocalDateSchema, TimeZoneSchema, addCalendarDays, calendarWeekday } from "./planning-dates.js";
 
 export const WorkoutTargetSchema = z.object({
-  metric: z.enum(["RPE", "FTP_PERCENT", "MAX_HR_PERCENT", "THRESHOLD_PACE_PERCENT"]),
-  lower: z.number().finite().positive(), upper: z.number().finite().positive(),
-}).strict().refine(value => value.lower <= value.upper && value.upper <= (value.metric === "RPE" ? 10 : value.metric === "MAX_HR_PERCENT" ? 100 : 300), "Invalid target range");
+  metric: z.enum(["RPE", "FTP_PERCENT", "MAX_HR_PERCENT", "THRESHOLD_PACE_PERCENT"])
+    .describe("All *_PERCENT metrics use percentage points: 88 means 88%, never 0.88. Threshold pace scales time per distance, so higher means slower."),
+  lower: z.number().finite().positive().describe("Lower target: RPE or percentage points (e.g. 88 for 88%)."),
+  upper: z.number().finite().positive().describe("Upper target: RPE or percentage points (e.g. 92 for 92%)."),
+}).strict().superRefine((value, context) => {
+  if (value.lower > value.upper || value.upper > (value.metric === "RPE" ? 10 : value.metric === "MAX_HR_PERCENT" ? 100 : 300)) {
+    context.addIssue({ code: "custom", message: "Invalid target range" });
+  }
+  if (value.metric !== "RPE") for (const bound of ["lower", "upper"] as const) {
+    // Representation guard, not a physiological floor. Do not guess by multiplying.
+    if (value[bound] > 0 && value[bound] <= 2) context.addIssue({ code: "custom", path: [bound],
+      params: { code: "LIKELY_FRACTIONAL_PERCENTAGE" },
+      message: `${value.metric} uses percentage points: use 88 for 88%, not 0.88. Values in (0, 2] are rejected as likely fractional encoding; no automatic conversion is applied.`,
+    });
+  }
+});
 
 export const WorkoutSegmentSchema = z.object({
   label: z.string().trim().min(1).max(100),
@@ -47,6 +61,7 @@ export const FlexiblePlanSchema = WeeklyPlanSchema.extend({
   version: z.literal(2), timeZone: TimeZoneSchema,
   analysis: PlanningAnalysisSchema.optional(),
   generation: PlanProvenanceSchema.optional(),
+  developmentBlock: ActiveDevelopmentBlockSchema.optional(),
   totalMinutes: z.number().finite().nonnegative(),
   budgets: z.object({ RUN: WeeklyPlanSchema.shape.budgets.shape.RUN.extend({ plannedMinutes: z.number().finite().nonnegative() }),
     BIKE: WeeklyPlanSchema.shape.budgets.shape.BIKE.extend({ plannedMinutes: z.number().finite().nonnegative() }),

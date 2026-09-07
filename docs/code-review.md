@@ -1,5 +1,24 @@
+> Latest structural fix: [BlockReview focus identity](block-review-focus-identity.md).
+> Review ID resolution, exact coverage diagnostics, server-owned metadata, and legacy history compatibility.
+
+> Previous checkpoint: [BlockReview decision-boundary scenarios](block-review-boundaries.md).
+> Review the six fixtures, result/reference comparison, and mocked reference-isolation tests.
+
+> Previous refinement: [review evidence and per-focus guidance file map](block-review-focus-guidance.md#changed-files-and-review-priorities).
+> Review linked-vs-reported evidence, immutable guidance, focus validation, and authoritative week roles first.
+
+> Previous checkpoint: [adaptive block-review files and priorities](adaptive-block-reviews.md#files-and-review-priorities).
+> Start with snapshot freshness/atomic persistence, decision-to-role transitions, and the coaching prompt.
+> Live reviews are evaluation-only; production dispatch remains deferred.
+
 > For the current generation changes, start with the [AI readiness review map](ai-readiness.md#review-map).
 > Earlier policy descriptions below may describe the previous planner.
+
+> September 7: start with the [development-block file review map](development-blocks.md#file-review-map)
+> for the new persistence, review lifecycle, and weekly prompt integration.
+
+> Latest fix: [percentage-target audit and evaluator review map](planner-target-units.md).
+> Start with the target schema, finalizer errors, and SDK-mocked regressions.
 
 # Code review and source guide
 
