@@ -2,7 +2,6 @@
 
 Turn Strava history, race goals, availability and athlete feedback into structured, adaptive swim, bike and run training plans.
 
-**LLM proposes. Deterministic code validates. PostgreSQL owns the saved plan.**
 
 [Demo & screenshots](#screenshots-and-demo) · [Architecture](#architecture) · [Local setup](#local-setup) · [Tests](#testing)
 
