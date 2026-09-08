@@ -1,6 +1,8 @@
 # Deployment preparation
 
-Prepared target: Vercel web, hosted PostgreSQL, hosted Redis, and a local Node.js worker. Nothing has been deployed by this checkpoint. Free service tiers are subject to their current limits; this is not a promise of free hosting or free OpenAI usage.
+Prepared target: Vercel web, hosted PostgreSQL, hosted Redis, and a separate Node.js worker on your machine or server. No verified public demo URL is recorded in this repository. Free service tiers are subject to their current limits; this is not a promise of free hosting or free OpenAI usage.
+
+Repository: [zfl1rice/strava-training-planner](https://github.com/zfl1rice/strava-training-planner). Import this repository when configuring the web deployment. Follow the [current architecture](architecture.md); older design/checkpoint notes are not evidence that services have been deployed.
 
 ## Web on Vercel
 
@@ -37,7 +39,7 @@ npm run db:deploy
 
 Review the target database before running migrations. Do not run `db:reset` or `db:recreate` against hosted data. Hosted service sleep, connection limits, and quota exhaustion can delay work; no production uptime claim is made.
 
-## Worker on your machine
+## Worker on your machine or server
 
 Set hosted infrastructure credentials in its environment (or local ignored files). Keep `OPENAI_API_KEY`, `PLANNER_PROVIDER=openai`, and model options on this machine. Worker `.env.local` overrides root file defaults, but process environment variables take precedence over both files.
 
@@ -56,6 +58,8 @@ Keep the process and computer running. Only outbound network access is needed: d
 3. Import/configure Vercel with the settings above, then deploy web explicitly.
 4. Register the stable Strava callback hostname and finish the authenticated smoke checklist.
 5. Verify `/demo` without a session; it must display only synthetic data.
-6. Put the `/demo` URL in README/portfolio. Keep development and production queues/databases separate.
+6. Verify the URL from a signed-out browser on another device, then put the `/demo` URL in the README opening links, GitHub About website and portfolio. Keep development and production queues/databases separate.
+
+Before describing the full application as deployed, separately verify OAuth, sync, generation and review against the hosted database/Redis and the running worker. A static `/demo` screenshot alone proves none of those external connections. Record the verified URL and setup, rather than claiming a particular worker host that has not been used.
 
 The public read-only demo needs no athlete data. Full authenticated use currently relies on Strava sessions; advanced account administration, abuse prevention, and unrestricted multi-user operation remain outside this personal-project checkpoint. A public recruiter demo is a smaller commitment than offering the authenticated app as an unrestricted service.

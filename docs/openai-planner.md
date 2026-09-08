@@ -1,4 +1,4 @@
-> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+> Current implementation: [architecture](architecture.md) and [Training Plan UI](training-plan-ui.md). This document retains milestone notes; dated limitations and counts below are historical.
 
 # First OpenAI planner integration
 
@@ -10,7 +10,7 @@ The [adaptive block-review checkpoint](adaptive-block-reviews.md) adds a separat
 reviewer and opt-in evaluation command. Weekly and review providers share the
 existing Responses transport. The weekly prompt now discourages duration padding,
 requires accurate intensity titles, and explains PROGRESS/HOLD/recovery semantics.
-Production live review jobs remain deferred; local review persistence is available.
+At this earlier checkpoint, only local review persistence was available. The current app has durable worker review jobs.
 
 This checkpoint connects a real provider to the existing planner contract. The worker
 uses the official OpenAI Node SDK and Responses API with Structured Outputs. The

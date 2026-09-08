@@ -1,3 +1,5 @@
+> Historical milestone / design record. For current behavior and setup, start with the [documentation index](README.md) and [architecture](architecture.md).
+
 # PlanningContext checkpoint — September 6, 2026
 
 This milestone supplies database-backed planning inputs. It does not call an LLM,

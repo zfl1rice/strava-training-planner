@@ -1,5 +1,7 @@
 # Application status
 
+Read this as a newest-first implementation timeline. Earlier test counts and deferred checklists are historical; use the [README](../README.md) and [architecture](architecture.md) for the current system.
+
 ## Training Plan UI checkpoint
 
 - [x] Persisted Run/Bike/Swim focus preferences, normalized to 100%, independently of weekly-minute goals and availability; future block creation/replanning reads them.
@@ -116,10 +118,10 @@ See the [audit and manual evaluation command](planner-target-units.md).
 
 See the [design, usage instructions, and review map](development-blocks.md).
 
-The [detailed design draft](design.md) documents current behavior and open decisions.
+The [detailed design draft](design.md) records the original behavior and design questions; [architecture](architecture.md) describes the current system.
 Proposals in that document do not change the implementation status below.
 
-## Current pre-AI generation checkpoint
+## Historical pre-AI generation checkpoint
 
 - [x] [AI readiness checkpoint](ai-readiness.md): hard/soft rules, recorded history,
   deviations, proposal correction, snapshot freshness, and evaluation scenarios.

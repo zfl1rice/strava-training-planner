@@ -1,3 +1,5 @@
+> Historical milestone / design record. For current behavior and setup, start with the [documentation index](README.md) and [architecture](architecture.md).
+
 # Product vision and implementation scope
 
 Recorded from the user's product direction on September 5, 2026.

@@ -1,3 +1,5 @@
+> Historical milestone / design record. For current behavior and setup, start with the [documentation index](README.md) and [architecture](architecture.md).
+
 # Pre-AI integration checklist
 
 The later [AI readiness checkpoint](ai-readiness.md) updates proposal validity and

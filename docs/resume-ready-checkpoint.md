@@ -1,6 +1,8 @@
+> Historical milestone / design record. For current behavior and setup, start with the [documentation index](README.md) and [architecture](architecture.md).
+
 # Resume-ready application checkpoint
 
-Implementation connects the existing prototype pieces without changing the web/worker architecture. **Live credential verification remains manual:** this checkout has no OpenAI API key, and no paid model call or real OAuth approval was performed during this checkpoint. The real application path passes integration tests with mocked OpenAI transport.
+Implementation connects the existing prototype pieces without changing the web/worker architecture. **Live credential verification remains manual:** no OpenAI API key was configured for that checkpoint verification, and no paid model call or real OAuth approval was performed during this checkpoint. The real application path passes integration tests with mocked OpenAI transport.
 
 ## Current flow
 

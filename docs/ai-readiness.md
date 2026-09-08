@@ -1,3 +1,5 @@
+> Historical milestone / design record. For current behavior and setup, start with the [documentation index](README.md) and [architecture](architecture.md).
+
 # AI integration readiness checkpoint
 
 The following describes the readiness checkpoint. The subsequent
@@ -161,7 +163,7 @@ Three invalid proposals cause a terminal failure; BullMQ does not multiply that
 correction loop. Provider/network exceptions escape to the infrastructure layer,
 which uses the existing persistent attempt limit/backoff. A transport failure may
 cause a later execution to invoke the provider again with the same snapshot, so
-three corrections are not a guarantee of only three billable network calls across
+three proposal attempts are not a guarantee of only three billable network calls across
 all infrastructure failures. No real provider transport/retry policy is added here.
 
 The existing lease lasts two minutes. Results after lease expiry cannot commit.

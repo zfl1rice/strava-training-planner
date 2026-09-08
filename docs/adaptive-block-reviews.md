@@ -1,4 +1,4 @@
-> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+> Current implementation: [architecture](architecture.md) and [Training Plan UI](training-plan-ui.md). This document retains milestone notes; dated limitations and counts below are historical.
 
 # Adaptive block-review checkpoint
 

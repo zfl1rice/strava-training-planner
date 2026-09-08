@@ -1,11 +1,11 @@
-> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+> Current implementation: [architecture](architecture.md) and [Training Plan UI](training-plan-ui.md). This document retains milestone notes; dated limitations and counts below are historical.
 
 # Persistent development blocks
 
 The subsequent [adaptive review checkpoint](adaptive-block-reviews.md) adds richer
 review evidence, a guarded review service, and an opt-in OpenAI review evaluator.
 It supersedes the foundation's review roadmap below. Terminal/uncovered blocks now
-gate normal weekly generation until review/replacement; live review jobs remain deferred.
+gate normal weekly generation until review/replacement; live jobs were deferred at that foundation checkpoint; durable review jobs are now implemented.
 
 Implemented September 7, 2026. This document is the review guide and operating
 checkpoint for the development-block foundation. It supplements the existing

@@ -1,11 +1,11 @@
-> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+> Current implementation: [architecture](architecture.md) and [Training Plan UI](training-plan-ui.md). This document retains milestone notes; dated limitations and counts below are historical.
 
 > Latest refinement: [explicit review evidence and per-focus guidance](block-review-focus-guidance.md).
 > Block lifecycle decisions now remain separate from selective capability progression.
 
 > Previous implementation: [adaptive block-review design](adaptive-block-reviews.md).
 > Explicit reviews now persist evidence/decisions and guide future weeks. Terminal or
-> uncovered blocks require review/replacement; live review dispatch is not enabled.
+> uncovered blocks require review/replacement; live dispatch was not enabled at that earlier checkpoint.
 
 > Current generation semantics: see [AI readiness checkpoint](ai-readiness.md).
 > It supersedes earlier hard-session/goal-cap rules for provider validation.

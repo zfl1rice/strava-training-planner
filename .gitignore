@@ -39,6 +39,15 @@ build/
 logs/
 *.log
 
+# Runtime diagnostics can contain memory contents or private activity data.
+*.dmp
+*.mdmp
+*.heapsnapshot
+*.heapprofile
+/core
+/core.[0-9]*
+/report.*.json
+
 # =========================
 # OS / Editor
 # =========================

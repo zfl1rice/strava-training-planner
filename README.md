@@ -1,145 +1,277 @@
 # AI Triathlon Training Planner
 
-A training calendar that turns Strava history, weekly goals, availability, and athlete feedback into structured swim, bike, and run plans. Built to explore a practical boundary for AI: a model proposes workouts and coaching guidance; application code owns identity, validation, persistence, and which results may take effect.
+Turn Strava history, race goals, availability and athlete feedback into structured, adaptive swim, bike and run training plans.
 
-**Try it locally:** [Open planner](http://localhost:3000) · [View synthetic demo](http://localhost:3000/demo)
+**LLM proposes. Deterministic code validates. PostgreSQL owns the saved plan.**
 
-**Demo link:** add your deployed `/demo` URL here after deployment. No production deployment is claimed.
+[Demo & screenshots](#screenshots-and-demo) · [Architecture](#architecture) · [Local setup](#local-setup) · [Tests](#testing)
 
-![Synthetic training calendar](docs/screenshots/demo-calendar.png)
+<a href="docs/screenshots/readme-calendar.png"><img src="docs/screenshots/readme-calendar.png" alt="Synthetic training calendar: completed activities in green, planned workouts in blue, with interval charts and weekly totals" width="960"></a>
 
-[Workout detail](docs/screenshots/demo-workout.png) ? [Block review](docs/screenshots/demo-review.png) ? [Screenshot checklist](docs/local-product-smoke.md#screenshots)
+- **Async Strava ingestion:** OAuth, token refresh, paginated sync and idempotent activity upserts.
+- **Structured AI workouts:** repeated intervals, resolved power/pace/HR targets and deterministic constraint checks.
+- **Adaptive training blocks:** persistent multi-week strategy, weekly reviews and per-focus progression guidance.
+- **Athlete-controlled planning:** weekly goals, sport emphasis, availability, feedback and protected-workout regeneration.
 
-## What works
+*Screenshot uses synthetic data. [Run the interactive demo locally](http://localhost:3000/demo) after setup; no public demo URL is configured in this repository.*
 
-- Strava OAuth, server-side token refresh, asynchronous paginated ingestion, and unique activity-ID upserts.
-- Goals, baseline metrics, race priorities, availability, restrictions, and temporary adjustments.
-- Worker-side OpenAI weekly generation with typed structured output, deterministic validation, bounded corrections, and persisted request status.
-- Calendar polling, concise workout cards, interval charts, grouped repeats, relative/resolved targets, and RPE/completion feedback.
-- Persistent DevelopmentBlocks and queued OpenAI BlockReviews with per-focus progression guidance.
-- A read-only, synthetic demo requiring no Strava account, database data, or paid API call.
+## Screenshots and demo
 
-The app is intended for personal/small-group use. It does not infer diagnoses, automatically extract PRs, or implement a physiological load model. The demo is hand-authored; it is not evidence of a live AI generation.
+The read-only `/demo` uses the application's calendar, workout details and block summary with hand-authored synthetic data. It requires no Strava account or paid AI call. It demonstrates the interface, not the quality of a live model response.
+
+<details>
+<summary>Explore workout details, training focus and an adaptive review</summary>
+
+| Structured workout detail | Training focus and current emphasis |
+| --- | --- |
+| [![Repeated bike intervals with resolved power targets](docs/screenshots/demo-workout.png)](docs/screenshots/demo-workout.png) | [![Training focus sliders and saved strategic explanations](docs/screenshots/training-plan-emphasis.png)](docs/screenshots/training-plan-emphasis.png) |
+
+| Adaptive block review | Clear-week confirmation |
+| --- | --- |
+| [![Illustrative block review and per-focus guidance](docs/screenshots/demo-review.png)](docs/screenshots/demo-review.png) | [![Confirmation before clearing eligible planned workouts](docs/screenshots/training-plan-clear.png)](docs/screenshots/training-plan-clear.png) |
+
+All screenshots use synthetic fixtures. [Capture instructions and provenance](docs/screenshots/README.md).
+
+</details>
+
+## Product overview
+
+Training across three sports means balancing competing goals with the time, facilities and recovery available each week. Connect Strava, sync recent activities, then configure desired weekly minutes, race priorities, baseline metrics, available days and relative sport emphasis. Without an upcoming race, the planning objective is General Fitness.
+
+A separate worker generates structured weekly workouts. Application code checks the proposal, resolves targets against saved baselines and persists the accepted plan for the calendar. Workout details reveal interval instructions on click; completion, perceived exertion (RPE) and comments provide feedback for later planning.
+
+A persistent training block supplies continuity between weeks. Reviews can progress, hold, bring recovery forward, continue recovery, complete the block or request a new strategy. These decisions inform subsequent generation; they do not silently rewrite the calendar.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  Browser --> Web[Next.js web]
-  Web -->|request + status| DB[(PostgreSQL)]
-  Web -->|JobRun ID| Redis[(Redis / BullMQ)]
-  Redis --> Worker[Separate Node.js worker]
-  Worker --> Strava[Strava API]
-  Worker --> AI[OpenAI]
-  Worker --> Validate[Deterministic validation]
-  Validate --> DB
-  DB -->|poll / calendar| Web
+flowchart TB
+  Browser["Browser"] <--> Web["Next.js web"]
+  Web <-->|"saved state"| DB[("PostgreSQL")]
+  Web -->|"job ID"| Queue[("Redis / BullMQ")]
+  Queue --> Worker["Node.js worker<br/>Process, validate, persist"]
+  Web -.->|"OAuth"| Strava["Strava API"]
+  Worker <-->|"activity sync"| Strava
+  Worker <-->|"context / proposal"| AI["OpenAI Responses API"]
+  Worker -->|"activities, plans, reviews, job state"| DB
+  classDef boundary fill:#eff6ff,stroke:#2563eb,color:#172554;
+  class Worker boundary;
 ```
 
-| Area | Responsibility |
+The web app handles interactive traffic; the worker handles external API calls and background processing. They are separate deployable processes in an **npm-workspaces monorepo**, with no imports between `apps/web` and `apps/worker`. Both use `packages/db` for database access and `packages/shared` for contracts.
+
+PostgreSQL stores requests, activity history, plans and reviews. BullMQ carries small persistent IDs; the worker loads the data it needs. The browser polls saved status and calendar data. [Architecture details and source map](docs/architecture.md).
+
+## AI planning design
+
+**The LLM is a proposal provider inside the planning system. It cannot directly write a plan or change the athlete's goals.**
+
+```mermaid
+flowchart LR
+  Context["Frozen<br/>PlanningContext"] --> Proposal["OpenAI<br/>proposal"]
+  Proposal --> Validate["Schema +<br/>hard constraints"]
+  Validate --> Resolve["Resolve targets<br/>Derive totals"]
+  Resolve --> Fresh{"Snapshot + lease<br/>still current?"}
+  Fresh -->|"yes"| Save["Atomic save:<br/>plan + success"]
+  Save --> Calendar["Calendar"]
+  Validate -->|"invalid: correct"| Proposal
+  Resolve -->|"target error"| Proposal
+  Fresh -->|"no"| Keep["Cancel;<br/>keep prior plan"]
+```
+
+| Model proposes | Deterministic/server code controls |
 | --- | --- |
-| `apps/web` | Next.js UI, opaque-cookie sessions, authenticated endpoints, queue producers |
-| `apps/worker` | BullMQ consumer, Strava ingestion, OpenAI adapters, missing-job recovery |
-| `packages/db` | Prisma access, snapshots, job ownership, transactional persistence |
-| `packages/shared` | Zod contracts, workout representation, deterministic validation, planning/review semantics |
+| Workout selection and its explanation | Authenticated ownership, immutable goals and protected workouts |
+| Frequency, duration distribution and progression tradeoffs | Valid dates, replacement window, allowed sports, pool access and daily/session limits |
+| Repeated intervals and relative intensity targets | Schema, duration arithmetic, percentage units and baseline-based target resolution |
+| Block-review decision and per-focus actions | Valid focus IDs, lifecycle rules, snapshot freshness and transactional persistence |
 
-Web and worker are separate deployables and never import one another. Shared code stays in packages. PostgreSQL is the source of truth; queue payloads contain only persistent IDs.
+The worker uses the **OpenAI Responses API with Zod-derived Structured Outputs**. Local validation still runs on every proposal. For example, 88% FTP is encoded as `88`, not `0.88`; the server resolves it against the saved cycling baseline. Missing baselines require an available target type such as RPE.
 
-## Engineering decisions
+An invalid proposal receives structured correction feedback: **three total proposal attempts maximum**—the initial proposal plus up to two corrections. Exhaustion, refusal or a stale result preserves the previously saved plan. Transient infrastructure retries are a separate mechanism and can cause additional API calls.
 
-**Durable asynchronous work.** Web saves a request before enqueueing it. A worker recovery scan finds missing jobs. Attempts, leases, and status live in Postgres. Short per-athlete locks serialize changes; no database transaction spans an OpenAI request.
+Weekly minutes remain **desired training goals**, not just availability ceilings. Deviations and hard-session clustering are exposed for review rather than universally rejected. Validation prevents malformed or hard-constraint-violating proposals from being saved; it does not establish physiological safety or optimal coaching.
 
-**Idempotent ingestion.** Strava activity IDs are unique. Re-syncing upserts existing activities rather than creating duplicates. Token refresh is serialized; ingestion retries transient failures with backoff and rate-limit delays.
+Read the [proposal finalizer](packages/shared/src/plan-generation.ts), [target resolver](packages/shared/src/workout-targets.ts) and [job persistence](packages/db/src/plan-jobs.ts), or the [detailed AI design](docs/openai-planner.md).
 
-**AI as a proposal provider.** Worker configuration selects deterministic or OpenAI generation. Code constructs a bounded context and resolves workout targets against recorded baselines. Zod and semantic checks enforce dates, workout identity, duration arithmetic, availability, restrictions, target units, and protected workouts. Invalid proposals receive at most three correction attempts. Validation does not prove coaching quality.
+## Adaptive block review
 
-**Stale-result protection.** Jobs freeze input snapshots. Changes to relevant goals, feedback, history, strategy, or dates invalidate old work. Failed/cancelled generation retains the previous calendar. Reviews append atomically and retain historical strategy. Sync, weekly generation, and review requests do not overlap for an athlete.
+`Saved week + activity summaries + feedback` → `BlockReviewContext` → `worker reviewer` → `lifecycle decision + per-focus guidance` → `next PlanningContext`
 
-**Goal semantics.** Weekly minutes are desired training goals, not merely availability ceilings. The model must explain meaningful deviations. Recovery, restrictions, and availability can justify less volume; “minimum effective dose” does not mean always prescribing less.
+A **training block** (`DevelopmentBlock` in code) stores its phase, week structure, sport/capability focuses and rationale. Initial block selection is deterministic: General Fitness considers saved sport-emphasis preferences, with rotation when no preference is set; race-targeted selection uses event priority, demands and dates. The weekly AI receives that persistent strategy.
 
-**Training-block lifecycle.** The first UI generation creates a deterministic starter block if one is missing. General Fitness rotates a broad primary sport; race-targeted defaults use stored priority, demands/duration, and race dates. The panel can explicitly replace a block without changing existing workouts. Weekly OpenAI generation receives this persistent context.
+Reviews separate two decisions:
 
-Review Week snapshots real saved plans, athlete-reported completion/RPE/comments, activity summaries, and current settings. The worker produces PROGRESS, HOLD, RECOVER_EARLY, CONTINUE_RECOVERY, COMPLETE_BLOCK, or REPLAN_BLOCK, plus PROGRESS/HOLD/MAINTAIN for each immutable focus ID. A terminal review closes the block; the next generation can create its successor. Existing calendar workouts change only when generation is requested.
+- **Block lifecycle:** progress, hold, recover early, continue recovery, complete or replan.
+- **Individual focus:** progress, hold or maintain. A successful run focus can progress while a struggling bike focus holds.
 
-**Evidence honesty.** Reported completion is not measured execution. Unlinked Strava totals are separate from prescribed minutes; interval compliance, automatic strengths/weaknesses, and baseline estimation remain deferred.
+The evidence model distinguishes athlete-reported completion from measured execution. RPE and comments provide context; missing data remains unknown. Linked-activity evidence can represent recorded duration, but **the current application does not link activities to prescribed workouts**: Strava totals remain separate background evidence, not proof of interval execution.
+
+Reviews append to block history. A completed or invalidated block can be followed by a new strategy. Saving sport emphasis affects future block creation/replanning. Create or replace a strategy to apply those preferences, then regenerate eligible workouts to bring that strategy into the calendar. [Review identity and validation](docs/block-review-focus-identity.md) · [Training Plan controls](docs/training-plan-ui.md).
+
+## Reliability and engineering decisions
+
+- **Durable dispatch:** save a `JobRun` before enqueueing its ID. Recovery scans reconcile pending jobs after interruption; attempts, retry times and leases live in Postgres.
+- **Idempotent ingestion:** sync the most recent 90 days with paginated Strava requests. A unique Strava activity ID plus ownership-checked upserts prevents duplicate activity rows on repeated syncs.
+- **Bounded retries:** sync has five infrastructure attempts; weekly generation and review have three. Backoff and provider rate-limit delays handle transient failures. SDK automatic retries are disabled so application policy controls retry behavior.
+- **Atomic acceptance:** save the accepted weekly plan and successful job state in one transaction. Reviews likewise append their result and mark success together. Database transactions do not span OpenAI calls.
+- **Concurrent edits:** per-athlete coordination prevents sync, generation and review requests from overlapping. Snapshot and lease checks reject stale results; existing plans survive failures. Snapshot comparisons tolerate only floating-point serialization round-off.
+- **Protected history:** regeneration retains past, locked and completed/modified/stopped workouts. Week clearing additionally preserves feedback-bearing workouts and never deletes activities or block/review history.
+- **Environment boundaries:** OpenAI configuration belongs to the worker. Web and worker must share the intended database and queue namespace; development and deployment credentials remain separate.
+
+A crash can repeat an external call before its response is persisted. This is not an exactly-once API execution guarantee.
+
+## Tech stack
+
+| Layer | Implementation |
+| --- | --- |
+| Web | Next.js **16.1.1**, React 19, TypeScript, Tailwind CSS 4 |
+| Background processing | Node.js, BullMQ, Redis 7, ioredis |
+| Persistence | Prisma 7, PostgreSQL 16 |
+| AI contracts | OpenAI Node SDK, Responses API, Structured Outputs, Zod |
+| Integration | Strava OAuth and REST API |
+| Local infrastructure | Docker Compose for PostgreSQL and Redis |
+
+Vercel web with managed storage and a separate worker is a [documented deployment target](docs/deployment.md), not a verified hosted deployment.
+
+## Repository structure
+
+```text
+apps/
+  web/       Next.js calendar, settings, sessions and queue-producing endpoints
+  worker/    BullMQ consumer, Strava ingestion, OpenAI adapters and job recovery
+packages/
+  db/        Prisma schema/migrations, database services and transactional saves
+  shared/    Zod schemas, planning context, workout targets and domain validators
+scripts/     Isolated tests, scenario evaluations and synthetic demo tooling
+docs/        Current architecture, review guides, screenshots and design history
+```
 
 ## Local setup
 
-Run commands from the directory containing this README and the root `package.json`. Use Node.js 22 or 24, npm, and Docker Desktop. This checkpoint was tested with Node.js 24.
-
-For a new checkout, copy `.env.example` to `.env` and `apps/web/.env.example` to `apps/web/.env.local`. Preserve existing credentials when updating. Set matching database/Redis settings and your Strava application credentials. Set the Strava callback domain to `localhost` and callback URI to `http://localhost:3000/api/strava/callback`.
+**Prerequisites:** Node.js 24, npm and Docker with Compose. Local verification used Node.js **24.12.0** and npm **11.6.2**. Commands below are PowerShell, run from the repository root.
 
 ```powershell
-npm install
-docker compose up -d postgres redis
+git clone https://github.com/zfl1rice/strava-training-planner.git
+cd strava-training-planner
+npm ci
+
+# Preserve existing files when updating a checkout.
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+if (!(Test-Path apps/web/.env.local)) { Copy-Item apps/web/.env.example apps/web/.env.local }
+if (!(Test-Path apps/worker/.env.local)) { Copy-Item apps/worker/.env.example apps/worker/.env.local }
+```
+
+Match the database/Redis values in root and web environment files. For the authenticated app, add your Strava API app credentials in both files, set its callback domain to `localhost`, and use `http://localhost:3000/api/strava/callback` as the redirect URI.
+
+```powershell
+docker compose up -d --wait postgres redis
 npm run db:generate
 npm run db:deploy
 npm run dev
 ```
 
-Open http://localhost:3000. The development command starts web and worker. Restart the worker after configuration/code changes. The root predev script builds shared packages.
+Open [the planner](http://localhost:3000) or [the read-only synthetic demo](http://localhost:3000/demo). Root `predev` builds shared packages, then `dev` starts web and worker. Restart the worker after code or configuration changes.
 
-Web development explicitly uses **Webpack** on Next.js 16.1.1. Turbopack dev reproduced runaway PostCSS child processes on Windows with an existing dev cache; Webpack avoids that process-pool path while retaining Tailwind and Fast Refresh. Production builds are unchanged. See [the investigation and verification results](docs/dev-process-spawn.md).
+The default weekly provider is deterministic, so initial local planning needs no OpenAI key. For live weekly generation **and block reviews**, set `PLANNER_PROVIDER=openai` and the worker key. Reviews require OpenAI configuration; simulated review fixtures remain available without it.
 
-### Environment variables
+**Windows dev fix:** `npm run dev` explicitly uses **Webpack** for Next.js 16.1.1. Turbopack dev reproduced runaway PostCSS child processes with an existing Windows dev cache. Webpack retains Tailwind and Fast Refresh; production still uses `next build`. Use the repository dev scripts. [Investigation and bounded-process checks](docs/dev-process-spawn.md).
 
-| Variable | Location / purpose |
+`npm run check:local` checks configuration, Postgres and Redis without printing secrets or making paid calls.
+
+<details>
+<summary>Production-style local startup</summary>
+
+After environment setup and migrations:
+
+```powershell
+npm run build
+npm run start --workspace @app/web
+```
+
+In a second terminal at the repository root:
+
+```powershell
+npm run start --workspace @app/worker
+```
+
+Keep both processes running. The build needs outbound access for the existing Google font imports.
+
+</details>
+
+## Environment variables
+
+Use the [root example](.env.example), [web example](apps/web/.env.example) and [worker example](apps/worker/.env.example) as the configuration reference.
+
+| Scope | Variables |
 | --- | --- |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Root `.env`; local Compose database |
-| `DATABASE_URL` | Root + web local env; persistent application database |
-| `REDIS_URL` | Root + web local env; same TCP Redis instance |
-| `BULLMQ_PREFIX` | Optional; must match web and worker; default `bull` |
-| `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` | Root + web local env; OAuth and refresh |
-| `STRAVA_REDIRECT_URI` | Web/root; exact callback URL and allowed request origin |
-| `PLANNER_PROVIDER` | Worker only: `deterministic` default, or `openai` |
-| `OPENAI_API_KEY` | Worker only; required for live generation/reviews |
-| `OPENAI_PLANNER_MODEL` | Worker; model identifier available to your API account |
-| `OPENAI_PLANNER_TIMEOUT_MS` | Worker; default 75000 |
-| `OPENAI_PLANNER_MAX_OUTPUT_TOKENS` | Worker; default 16000 |
-| `ENABLE_PING_DIAGNOSTICS` | Web; false unless explicitly testing Ping |
+| Local Compose | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` |
+| Web and worker infrastructure | `DATABASE_URL`, `REDIS_URL`; optional matching `BULLMQ_PREFIX` |
+| Strava server credentials | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI` |
+| Worker AI | `PLANNER_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_PLANNER_MODEL` |
+| Worker request limits | `OPENAI_PLANNER_TIMEOUT_MS` (75,000 default), `OPENAI_PLANNER_MAX_OUTPUT_TOKENS` (16,000 default) |
+| Web diagnostics | `ENABLE_PING_DIAGNOSTICS=false` unless explicitly testing Ping |
 
-For live generation, copy `apps/worker/.env.example` to `apps/worker/.env.local` **only if it does not already exist**. Set `PLANNER_PROVIDER=openai` and your key there. Do not put the key in web or any `NEXT_PUBLIC_*` variable. The worker reads this file, then root `.env`; already-set process variables take precedence.
+The configured model default is `gpt-5.6-luna`; set a Responses/Structured Outputs model accessible to your API account. This identifies the repository default, not a promise of model access or pricing.
 
-`npm run check:local` checks configuration and local infrastructure without printing secrets or making paid calls. A blank key is reported as a setup item. This is not a substitute for a live smoke test.
+**Never expose `OPENAI_API_KEY` or `STRAVA_CLIENT_SECRET` through `NEXT_PUBLIC_*` variables.** Keep the OpenAI key out of the web environment. Worker loading order is existing process variables, `apps/worker/.env.local`, then root `.env`.
 
-## Run and verify
+## Testing
+
+The latest application checkpoint passed **268 tests across 17 suites**, plus TypeScript, lint, worker compilation, production web build and synthetic browser checks. This count comes from the recorded full-suite run, not the number of test files. [Verification record](docs/training-plan-ui.md#validation).
 
 ```powershell
 npm test
 npm run typecheck
 npm run lint
 npm run build
-npm run evaluate:planner
-npm run evaluate:blocks
-npm run evaluate:block-review
 ```
 
-The full suite uses disposable Postgres databases and isolated Redis prefixes. Its database user needs CREATE DATABASE permission. Provider calls are mocked. Existing individual commands such as `test:sync`, `test:openai`, `test:block-reviews`, and `test:review-jobs` remain available.
+The full suite uses disposable Postgres databases, isolated Redis prefixes and mocked/deterministic providers. Start local Compose first; its database role needs permission to create/drop test databases. No paid AI calls are made.
 
-The free fixtures cover weekly planning, strategic blocks, and review boundaries. Runtime logs record provider-call latency, tokens (unknown when unreported), correction attempt, infrastructure attempt, model, and response ID. Sync status shows activities processed, not a fabricated “new activities” count. See [checkpoint results](docs/resume-ready-checkpoint.md) for the verified test count.
+| Area | Focused commands |
+| --- | --- |
+| Strava OAuth / ingestion | `npm run test:strava` · `npm run test:sync` |
+| Weekly planning / AI adapter | `npm run test:adaptive` · `npm run test:semantics` · `npm run test:openai` |
+| Blocks / review lifecycle | `npm run test:blocks` · `npm run test:block-reviews` · `npm run test:review-jobs` |
+| Local scenario evaluations | `npm run evaluate:planner` · `npm run evaluate:blocks` · `npm run evaluate:block-review` |
 
-One **optional paid evaluation**, run manually:
+Evaluations use synthetic contexts and do not write application records. Default evaluators remain local even when the worker is configured for OpenAI.
+
+<details>
+<summary>Optional paid evaluation: one selected scenario</summary>
+
+These commands make external OpenAI calls and incur API usage. Configure the worker first. Each selected scenario can make up to three proposal calls; run one command at a time. Omitting `--scenario` evaluates the broader set.
 
 ```powershell
 npm run evaluate:planner:openai -- --scenario general-fitness-active-block *> general-fitness-active-block.log
 ```
 
-Evaluator output does not create application records. To prove the actual UI path, follow [the local product smoke checklist](docs/local-product-smoke.md).
+Or evaluate a review boundary:
 
-## Demo and deployment
+```powershell
+npm run evaluate:block-review:openai -- --scenario replan-new-race *> block-review-replan-new-race.log
+```
 
-`/demo` reuses the calendar, grouped workout details, and block summary with a checked-in synthetic fixture. No demo account or database seed is required. `npm run demo:build` rebuilds only that fixture; it never alters an athlete's data.
+The ignored log captures long PowerShell output. Structural validation and reference comparisons support human review; they do not prove coaching quality. [Live UI smoke checklist](docs/local-product-smoke.md).
 
-[Deployment guide](docs/deployment.md): Vercel web, hosted Postgres/Redis, and a local worker initially. No deployment is performed by setup or build scripts. A sleeping/offline local worker delays queued jobs. OpenAI API usage remains a separate cost.
+</details>
+
+## Deployment
+
+The intended deployment separates **Vercel web**, **managed PostgreSQL**, **TCP Redis/BullMQ**, and a **separate worker** on a server or the owner's machine. Register a stable production Strava callback and keep the OpenAI key worker-side.
+
+[Deployment guide](docs/deployment.md) covers build roots, environment separation, migrations and verification. A local worker must stay awake and running. No hosted deployment, uptime, free-tier availability or usage-cost claim is made here.
+
+## Intentional limits
+
+- Day-level scheduling; generation covers the current-week remainder or next week.
+- Initial block selection is deterministic; sport percentages express preference, not proportional minute allocation or inferred weakness.
+- Automatic PR extraction, inferred fitness profiles, baseline updates and physiological load models remain deferred.
+- No automatic activity-to-workout linking or interval-execution analysis; raw Strava streams are not stored.
+- Calendar export, weather-aware scheduling and advanced multi-race periodization remain deferred.
+- Public account administration and abuse controls are outside the current personal/small-group scope.
 
 ## Further reading
 
-- [Local audit](docs/resume-readiness-audit.md)
-- [Checkpoint results and file map](docs/resume-ready-checkpoint.md)
-- [Detailed design](docs/design.md)
-- [OpenAI weekly planner](docs/openai-planner.md)
-- [Development blocks](docs/development-blocks.md)
-- [Review evidence and focus identity](docs/block-review-focus-identity.md)
-- [Review decision-boundary scenarios](docs/block-review-boundaries.md)
-
-Deferred: automatic PR extraction, stream analysis, inferred fitness profiles, baseline updates, TSS/CTL/ATL, calendar integrations, advanced multi-race optimization, social features, and a comprehensive production authentication system.
+[Documentation index](docs/README.md) · [Architecture and code entry points](docs/architecture.md) · [Training Plan UI and protection rules](docs/training-plan-ui.md) · [Deployment](docs/deployment.md)

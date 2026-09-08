@@ -1,3 +1,5 @@
+> Historical milestone / design record. For current behavior and setup, start with the [documentation index](README.md) and [architecture](architecture.md).
+
 # Planning settings UI — September 6, 2026
 
 **Historical checkpoint:** The subsequent [pre-AI generation work](pre-ai-checkpoint.md)

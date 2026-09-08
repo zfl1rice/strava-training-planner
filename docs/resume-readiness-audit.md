@@ -1,3 +1,5 @@
+> Historical milestone / design record. For current behavior and setup, start with the [documentation index](README.md) and [architecture](architecture.md).
+
 # Local product audit — 2026-09-07
 
 Before implementation: clean main, one local commit ahead of origin (`d54c08d refined AI`). Its push was blocked by automatic approval review; this task does not retry it.

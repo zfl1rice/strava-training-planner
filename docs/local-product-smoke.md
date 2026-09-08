@@ -5,8 +5,8 @@ Use the monorepo directory containing `package.json`. This checklist distinguish
 ## Start
 
 ```powershell
-npm install
-docker compose up -d postgres redis
+npm ci
+docker compose up -d --wait postgres redis
 npm run db:generate
 npm run db:deploy
 npm run check:local
@@ -21,14 +21,16 @@ First configure `.env` and `apps/web/.env.local` using their examples, preservin
 2. Open `http://localhost:3000`. Click Connect Strava and approve activity access. Expect connected status. Confirm worker terminal reports `Worker ready on queue jobs`.
 3. Click Sync Activities. Watch pending/running/success, activity count, last sync time, and calendar refresh. Sync again: a fixed set of Strava IDs should retain the same record count (new/updated upstream activities can change content).
 4. Save Profile baselines/timezone, Goals, Availability, and any Restrictions/Adjustments. For General Fitness, leave upcoming races empty. Alternatively add an event with date, priority, and demands/duration.
-5. Click Create training block, or let the first generation create one. Check phase, primary/supporting sport focus, dates, and week pattern. Starter defaults are visible and are not inferred fitness assessments.
+5. In Training Plan, adjust the Run/Bike/Swim sliders and click **Save focus**. Reload to check persistence. Click **Start training strategy**, or let the first generation create one. Expand **Current emphasis** and **Week structure** to check rationale, dates and progression. Saved percentages express preference, not minute budgets or inferred fitness. Use **Apply saved focus to a new strategy** only when you want to replace the active strategy; it retains history and does not rewrite the calendar.
 6. **Paid action:** in Plan settings & weekly goals, click Generate next week's plan once. Browser Network should show POST `/api/planner` with 202 and GET polling. Worker should log `planner.provider_call` with the selected model, response ID, latency/tokens, and proposal attempt. No API key should appear in browser traffic.
 7. Confirm SUCCESS and new calendar entries without refreshing the page. Navigate to next month if the generated week crosses the month boundary. Expand the plan details to see provider/model provenance and desired-versus-planned minutes.
 8. Click a workout. Check warm-up, repeats, work/recovery steps, targets, duration and explanation. Save completion (completed/modified/stopped), RPE and comments. Reopen it to verify persistence.
 9. A review applies to the current or immediately preceding saved week, within the active block. To exercise the flow on a new account today, use **Regenerate the rest of this week** (another paid generation) and save feedback on a current-week workout. That review is explicitly marked in progress, not presented as a completed-week assessment. To verify a fully completed week, return the following week; do not falsify activity history.
-10. **Paid action:** select the saved week in Training block & review, then click Review Week once. Observe persistent pending/running status. Worker logs `block_review.provider_call`; the panel updates to the global decision, per-focus guidance, rationale, and effective date.
-11. Generate the next week to apply latest guidance (another paid action). Inspect the saved plan's `developmentBlock.previousReview` in the planner response to verify the review enters the weekly context. Existing completed/locked workouts remain protected during remaining-week regeneration. A terminal review closes the old block; subsequent generation creates a new starter block, or use Create training block explicitly.
+10. **Paid action:** select the saved week in Training Plan or the calendar. Completed calendar weeks show **Review Week**; the current week shows **Review progress so far**. Cancel the confirmation first to verify that no review request is sent, then deliberately confirm when ready. Observe persistent pending/running status. Worker logs `block_review.provider_call`; the panel updates to the global decision, per-focus guidance, rationale, and effective date.
+11. Generate the next week to apply latest guidance (another paid action). Inspect the saved plan's `developmentBlock.previousReview` in the planner response to verify the review enters the weekly context. Existing completed/locked workouts remain protected during remaining-week regeneration. A terminal review closes the old block; subsequent generation creates a new starter block, or use **Start training strategy** explicitly.
 12. Check failure behavior without a paid call: stop the worker, submit a request, and verify PENDING survives reload. Restart the worker to recover it. To test missing-key handling, use a separate test configuration: generation/review must fail usefully and retain the previous plan/block. Do not edit goals while intentionally testing a successful live response; separate stale-result tests cover that behavior.
+
+To verify **Clear This Week** without changing real training, use `node scripts/smoke-training-ui.mjs` after a production web build. It uses a disposable synthetic account and checks cancellation, eligible removal, protected feedback/history and UI refresh. The clear action itself makes no AI call; regenerating afterwards with the OpenAI provider does.
 
 For automated coverage instead of paid calls:
 
@@ -45,8 +47,8 @@ This uses real Postgres, Redis, authenticated route handlers and worker processi
 - Scroll to “Illustrative block review”: global decision and per-focus guidance.
 - Optional: capture your own real successful generation with provider provenance, after removing personal names and private activity details.
 
-Use a desktop browser at roughly 1440px width, and also check narrow-screen horizontal calendar scrolling. Keep “SYNTHETIC DATA” visible on demo screenshots. Four synthetic images are saved in `docs/screenshots/`. To regenerate them, start web and run `node scripts/screenshot-demo.mjs http://localhost:3000`. This optional script uses installed Microsoft Edge on Windows (or `CHROME_PATH` pointing to Chromium), an isolated temporary browser profile, and a localhost-only URL. It asserts that no authenticated application API is called. No real athlete screenshots are collected.
+Use a desktop browser at roughly 1440px width, and also check narrow-screen horizontal calendar scrolling. Label synthetic data in the image or its adjacent caption. Five demo images, including a wide README calendar capture, are saved in `docs/screenshots/`; four additional Training Plan captures use a disposable account. See the [asset inventory and recapture instructions](screenshots/README.md). No real athlete screenshots are collected.
 
 ## Verified and unverified
 
-See `resume-ready-checkpoint.md` for actual automated results. Manual live OAuth and paid OpenAI checks require your credentials and are not claimed complete from evaluator output or mocked tests.
+See [the Training Plan UI validation record](training-plan-ui.md#validation) for the latest application checks. The older `resume-ready-checkpoint.md` records its original integration milestone. Manual live OAuth and paid OpenAI checks require your credentials and are not claimed complete from evaluator output or mocked tests.
