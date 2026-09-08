@@ -1,3 +1,5 @@
+> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+
 # First OpenAI planner integration
 
 See [review evidence and focus guidance](block-review-focus-guidance.md) for the

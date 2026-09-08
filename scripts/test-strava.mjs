@@ -6,6 +6,9 @@ import pg from "pg";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const testFiles = {
+  "training-ui": "tests/training-plan-ui.test.mjs",
+  redis: "tests/redis-lifecycle.test.mjs",
+  "review-jobs": "tests/review-jobs.test.mjs",
   oauth: "tests/strava-oauth.test.mjs",
   sync: "tests/activity-sync.test.mjs",
   training: "tests/training-summary.test.mjs",

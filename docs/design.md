@@ -1,3 +1,5 @@
+> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+
 > Latest refinement: [explicit review evidence and per-focus guidance](block-review-focus-guidance.md).
 > Block lifecycle decisions now remain separate from selective capability progression.
 

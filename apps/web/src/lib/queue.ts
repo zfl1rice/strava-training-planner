@@ -4,7 +4,7 @@ import { bullConnectionFromUrl, QUEUES, JOBS, SYNC_ATTEMPTS, PLAN_ATTEMPTS, type
 type PingQueue = Queue<PingJob, { processed: boolean; userId: number }, typeof JOBS.ping>;
 type SyncQueue = Queue<SyncAthleteJob, { activityCount: number }, typeof JOBS.syncAthlete>;
 // Cache both producers across Next.js hot reloads, preserving their distinct types.
-type PlanQueue = Queue<GeneratePlanJob, unknown, typeof JOBS.generatePlan>;
+type PlanQueue = Queue<GeneratePlanJob, unknown, typeof JOBS.generatePlan | typeof JOBS.reviewBlock>;
 const queueCache = globalThis as unknown as { planQueue?: PlanQueue; pingQueue?: PingQueue; syncQueue?: SyncQueue };
 
 export function getSyncQueue(): SyncQueue {
@@ -71,4 +71,9 @@ export function getPlanQueue(): PlanQueue {
     queueCache.planQueue.on("error", () => console.error("Plan queue unavailable"));
   }
   return queueCache.planQueue;
+}
+
+// Review and generation payloads both contain only a persistent JobRun ID.
+export function getReviewQueue() {
+  return getPlanQueue();
 }

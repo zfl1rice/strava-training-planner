@@ -1,4 +1,4 @@
-import { isDeepStrictEqual } from "node:util";
+import { planningSnapshotsEqual } from "./planning-snapshots.js";
 import { buildPlanningContext } from "./planning-context.js";
 import { GenerationInputSchema, generatePlanWithCorrections, type GenerationInput, type FlexiblePlan, type PlanProvider, calendarWorkouts, easyWorkout, type StructuredWorkout, calendarMonday, localDateAt, addCalendarDays } from "@pkg/shared";
 import {
@@ -143,7 +143,7 @@ export async function generationInputIsCurrent(input: GenerationInput, database:
   if (localDateAt(now, input.context.athlete.timeZone) !== localDateAt(snapshotTime, input.context.athlete.timeZone)) return false;
   try {
     const current = await prepareGenerationInput(input.context.athlete.id, snapshotTime, input.context.targetWeek.startDate, database);
-    return isDeepStrictEqual(current, input);
+    return planningSnapshotsEqual(current, input);
   } catch (error) {
     if (error instanceof PlanSyncInProgressError || error instanceof StaleGenerationError) return false;
     throw error;

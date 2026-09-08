@@ -1,8 +1,9 @@
+import { configuredBlockReviewer } from "./review-provider.js";
 import { configuredPlanProvider } from "./plan-provider.js";
 import { DelayedError, UnrecoverableError, type Job } from "bullmq";
-import { JOBS, GeneratePlanJobSchema, PingJobSchema, SyncAthleteJobSchema, SYNC_HISTORY_DAYS, SYNC_ATTEMPTS } from "@pkg/shared";
+import { JOBS, ReviewBlockJobSchema, GeneratePlanJobSchema, PingJobSchema, SyncAthleteJobSchema, SYNC_HISTORY_DAYS, SYNC_ATTEMPTS } from "@pkg/shared";
 import {
-  executePlanRun, finishSyncRun, getValidStravaAccessToken, loadSyncRun, recordSyncFailure, saveActivityPage, startSyncRun,
+  executeReviewRun, executePlanRun, finishSyncRun, getValidStravaAccessToken, loadSyncRun, recordSyncFailure, saveActivityPage, startSyncRun,
   renewSyncLease, SyncLeaseLostError,
 } from "@pkg/db";
 import {
@@ -15,12 +16,22 @@ export function stravaBackoff(attemptsMade: number, _type?: string, error?: Erro
 }
 
 export async function processJob(job: Job) {
+  if (job.name === JOBS.reviewBlock) {
+    const parsed = ReviewBlockJobSchema.safeParse(job.data);
+    if (!parsed.success) throw new UnrecoverableError("Invalid ReviewBlockJob");
+    const result = await executeReviewRun(parsed.data.jobRunId, configuredBlockReviewer());
+    if (result.status === "DEFERRED") { await job.moveToDelayed(result.until!, job.token); throw new DelayedError(); }
+    if (result.status !== "SUCCESS") throw new UnrecoverableError("Review request is terminal");
+    return result;
+  }
   if (job.name === JOBS.generatePlan) {
     const parsed = GeneratePlanJobSchema.safeParse(job.data);
     if (!parsed.success) throw new UnrecoverableError("Invalid GeneratePlanJob");
     const result = await executePlanRun(parsed.data.jobRunId, configuredPlanProvider());
     if (result.status === "DEFERRED") { await job.moveToDelayed(result.until!, job.token); throw new DelayedError(); }
-    if (result.status !== "SUCCESS") throw new UnrecoverableError("Generation request is terminal");
+    if (result.status !== "SUCCESS") throw new UnrecoverableError(
+      ("error" in result && result.error) || `Generation ${result.status.toLowerCase()}. Request generation again.`,
+    );
     return result;
   }
   if (job.name === JOBS.ping) {

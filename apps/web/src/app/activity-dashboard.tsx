@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SYNC_HISTORY_DAYS, type SyncDashboard, type PlannerState } from "@pkg/shared";
 import WeeklyTraining from "./training-summary";
+import TrainingBlockPanel from "./training-block-panel";
 import WeeklyPlanner from "./weekly-planner";
 import TrainingCalendar from "./training-calendar";
 
@@ -12,6 +13,7 @@ export default function ActivityDashboard({ initialData, initialPlanner, initial
   const [data, setData] = useState(initialData);
   const [submitting, setSubmitting] = useState(false);
   const [planRevision, setPlanRevision] = useState(0);
+  const [selectedWeek, setSelectedWeek] = useState("");
   const [error, setError] = useState<string | null>(null);
   const syncActive = data.latestSync?.status === "PENDING" || data.latestSync?.status === "RUNNING";
 
@@ -75,10 +77,12 @@ export default function ActivityDashboard({ initialData, initialPlanner, initial
           {submitting ? "Starting…" : syncActive ? "Syncing…" : "Sync Activities"}
         </button>
       </div>
-      <TrainingCalendar initialMonth={initialData.trainingSummary.generatedAt.slice(0, 7)} refreshKey={calendarRefreshKey} />
+      <TrainingCalendar initialMonth={initialData.trainingSummary.generatedAt.slice(0, 7)} refreshKey={calendarRefreshKey}
+        selectedWeek={selectedWeek} onWeekChange={setSelectedWeek} onPlanChanged={() => setPlanRevision(value => value + 1)} />
+      <TrainingBlockPanel refreshKey={planRevision} selectedWeek={selectedWeek} onWeekChange={setSelectedWeek} />
       <details className="rounded-xl border border-slate-200 bg-white" open={initialGoalsOpen}>
         <summary className="cursor-pointer px-5 py-4 font-medium">Plan settings &amp; weekly goals</summary>
-        <WeeklyPlanner initialData={initialPlanner} syncActive={syncActive || submitting}
+        <WeeklyPlanner initialData={initialPlanner} refreshKey={planRevision} syncActive={syncActive || submitting}
           onPlanSaved={() => setPlanRevision(value => value + 1)} />
       </details>
       <details className="rounded-xl border border-slate-200 bg-white">

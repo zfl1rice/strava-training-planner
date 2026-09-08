@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import ClearWeekButton from "./clear-week-button";
 import WorkoutFeedbackForm from "./workout-feedback-form";
+import StructuredWorkoutDetails from "./structured-workout-details";
 import WorkoutChart from "./workout-chart";
 import { useEffect, useRef, useState } from "react";
-import { CalendarMonthSchema, calendarMonthRange, type TrainingCalendarData, calendarWorkouts, localDateAt } from "@pkg/shared";
+import { CalendarMonthSchema, calendarMonthRange, calendarMonday, type TrainingCalendarData, calendarWorkouts, localDateAt } from "@pkg/shared";
 
 type CalendarEntry =
   | { kind: "completed"; date: string; activity: TrainingCalendarData["activities"][number] }
@@ -20,12 +22,14 @@ const entryMinutes = (entry: CalendarEntry) => entry.kind === "planned"
   ? entry.workout.durationMinutes : entry.activity.durationSeconds / 60;
 const entryTitle = (entry: CalendarEntry) => entry.kind === "planned"
   ? entry.workout.title : entry.activity.name || sportNames[entry.activity.type] || entry.activity.type;
+const entryStatus = (entry: CalendarEntry) => entry.kind === "completed" ? "Recorded activity"
+  : entry.plan.workoutStates?.find(state => (state.workoutId ?? `${state.date}:${state.templateId}`) === entry.workout.id)?.completion ?? "PLANNED";
 const formatTotal = (minutes: number) => {
   const rounded = Math.round(minutes);
   return rounded >= 60 ? `${Math.floor(rounded / 60)}h ${rounded % 60}m` : `${rounded}m`;
 };
 
-function WorkoutDetails({ entry, onClose, onSaved }: { entry: CalendarEntry | null; onClose: () => void; onSaved: () => void }) {
+function WorkoutDetails({ entry, onClose, onSaved, readOnly = false }: { entry: CalendarEntry | null; onClose: () => void; onSaved: () => void; readOnly?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (entry && !dialog.current?.open) dialog.current?.showModal();
@@ -40,7 +44,7 @@ function WorkoutDetails({ entry, onClose, onSaved }: { entry: CalendarEntry | nu
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <p className={`mb-2 text-xs font-semibold uppercase tracking-widest ${entry.kind === "completed" ? "text-emerald-700" : "text-blue-700"}`}>
-              {entry.kind === "completed" ? "Completed · Strava" : "Planned workout"}
+              {entry.kind === "completed" ? "Recorded activity" : `${entryStatus(entry)} workout`}
             </p>
             <h2 id="workout-detail-title" className="text-2xl font-semibold">{entryTitle(entry)}</h2>
             <p className="mt-2 text-sm text-slate-500">{formatDate(entry.date)}</p>
@@ -52,13 +56,13 @@ function WorkoutDetails({ entry, onClose, onSaved }: { entry: CalendarEntry | nu
           {entry.kind === "planned" && ` · ${entry.workout.effort.toLowerCase()} effort${entry.workout.optional ? " · optional" : ""}`}
         </p>
         {entry.kind === "planned" ? (
-          <div>{"blocks" in entry.workout && <><WorkoutChart workout={entry.workout} /><p className="mb-4 text-sm">{entry.workout.explanation}</p></>}<ol className="space-y-3">
+          <div>{"blocks" in entry.workout ? <StructuredWorkoutDetails workout={entry.workout} /> : <ol className="space-y-3">
             {entry.workout.steps.map((step, index) => <li key={index} className="rounded-lg bg-slate-50 p-4">
               <h3 className="font-medium">{step.label} <span className="font-normal text-slate-500">· {step.minutes} min</span></h3>
               <p className="mt-1 text-sm leading-6 text-slate-600">{step.instructions}</p>
             </li>)}
-          </ol><WorkoutFeedbackForm key={`${entry.plan.id}-${entry.workout.id}-${entry.plan.updatedAt}`} planId={entry.plan.id} updatedAt={entry.plan.updatedAt} workoutId={entry.workout.id}
-            state={entry.plan.workoutStates?.find(state => (state.workoutId ?? `${state.date}:${state.templateId}`) === entry.workout.id)} onSaved={onSaved} /></div>
+          </ol>}{!readOnly && <WorkoutFeedbackForm key={`${entry.plan.id}-${entry.workout.id}-${entry.plan.updatedAt}`} planId={entry.plan.id} updatedAt={entry.plan.updatedAt} workoutId={entry.workout.id}
+            state={entry.plan.workoutStates?.find(state => (state.workoutId ?? `${state.date}:${state.templateId}`) === entry.workout.id)} onSaved={onSaved} />}</div>
         ) : <div className="space-y-4 text-sm text-slate-600">
           <p>{sportNames[entry.activity.type] || entry.activity.type} · Recorded moving time</p>
           <p>Distance: {entry.activity.distanceMeters === null ? "Unavailable" : entry.activity.type === "SWIM"
@@ -74,17 +78,22 @@ function WorkoutDetails({ entry, onClose, onSaved }: { entry: CalendarEntry | nu
   );
 }
 
-export default function TrainingCalendar({ initialMonth, refreshKey }: { initialMonth: string; refreshKey: string }) {
+export default function TrainingCalendar({ initialMonth, refreshKey, demoData, selectedWeek, onWeekChange, onPlanChanged }: {
+  initialMonth: string; refreshKey: string; demoData?: TrainingCalendarData;
+  selectedWeek?: string; onWeekChange?: (week: string) => void; onPlanChanged?: () => void;
+}) {
   const [month, setMonth] = useState(initialMonth);
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState<{ key: string; data?: TrainingCalendarData; error?: string } | null>(null);
   const [selected, setSelected] = useState<CalendarEntry | null>(null);
+  const [weekSelection, setWeekSelection] = useState("");
   const requestKey = `${month}:${refreshKey}:${retry}`;
-  const loading = result?.key !== requestKey;
-  const data = !loading ? result?.data : undefined;
-  const error = !loading ? result?.error : undefined;
+  const loading = !demoData && result?.key !== requestKey;
+  const data = demoData ?? (!loading ? result?.data : undefined);
+  const error = !demoData && !loading ? result?.error : undefined;
 
   useEffect(() => {
+    if (demoData) return;
     const controller = new AbortController();
     async function loadCalendar() {
       try {
@@ -100,7 +109,7 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
     }
     void loadCalendar();
     return () => controller.abort();
-  }, [month, requestKey]);
+  }, [month, requestKey, demoData]);
 
   const { start, end } = calendarMonthRange(month);
   const weeks = Array.from({ length: (end.getTime() - start.getTime()) / DAY_MS / 7 }, (_, index) =>
@@ -110,8 +119,10 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
     ...(data?.plans.flatMap(plan => calendarWorkouts(plan.content).map(workout => ({ kind: "planned" as const, date: workout.date, workout, plan }))) ?? []),
   ];
   const restDates = new Set(data?.plans.flatMap(plan => plan.content.days.filter(day => day.kind === "REST").map(day => day.date)));
-  const today = localDateAt(new Date(), data?.timeZone ?? "UTC");
+  const today = demoData ? demoData.plans[0]?.content.weekStart.slice(0, 10) ?? `${demoData.month}-01` : localDateAt(new Date(), data?.timeZone ?? "UTC");
   const monthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const activeWeek = selectedWeek || weekSelection || calendarMonday(today);
+  const weekPlan = data?.plans.find(plan => plan.content.weekStart.slice(0, 10) === activeWeek);
   function changeMonth(offset: number) {
     const date = new Date(`${month}-01T00:00:00Z`);
     date.setUTCMonth(date.getUTCMonth() + offset);
@@ -133,6 +144,12 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
           <input aria-label="Calendar month" type="month" min="1900-01" max="2199-12" value={month}
             onChange={event => { if (CalendarMonthSchema.safeParse(event.target.value).success) setMonth(event.target.value); }}
             className="calendar-nav max-w-44" />
+          {!demoData && <>
+            <label className="text-sm">Selected week <select aria-label="Selected week" className="calendar-nav" value={activeWeek} onChange={event => {
+              setWeekSelection(event.target.value); onWeekChange?.(event.target.value);
+            }}>{[...new Set([activeWeek, ...weeks.map(week => week[0])])].sort().map(week => <option key={week} value={week}>Week of {week}</option>)}</select></label>
+            <ClearWeekButton plan={weekPlan} today={today} onCleared={() => { setSelected(null); setRetry(value => value + 1); onPlanChanged?.(); }} />
+          </>}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3 text-xs text-slate-500">
@@ -174,10 +191,11 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
                 <div className="space-y-2">
                   {weekEntries.filter(entry => entry.date === date).map(entry => <button type="button"
                     key={entry.kind === "completed" ? `activity-${entry.activity.id}` : `plan-${entry.workout.id}`}
-                    className={`calendar-entry calendar-entry-${entry.kind}`} onClick={() => setSelected(entry)}
-                    aria-label={`${entry.kind === "completed" ? "Completed" : "Planned"}: ${Math.round(entryMinutes(entry))} min ${entryTitle(entry)}, ${formatDate(date)}`}>
-                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide">{entry.kind === "completed" ? "✓ Completed" : "○ Planned"} · {entry.kind === "completed" ? entry.activity.type : entry.workout.sport}</span>
+                    className={`calendar-entry calendar-entry-${entryStatus(entry) === "COMPLETED" ? "completed" : entry.kind}`} onClick={() => setSelected(entry)}
+                    aria-label={`${entryStatus(entry)}: ${Math.round(entryMinutes(entry))} min ${entryTitle(entry)}, ${formatDate(date)}`}>
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide">{entryStatus(entry)} · {entry.kind === "completed" ? entry.activity.type : entry.workout.sport}</span>
                     {entry.kind === "planned" && "blocks" in entry.workout && <WorkoutChart workout={entry.workout} />}
+                    {entry.kind === "planned" && <span className="block text-[10px]">{entry.workout.effort.toLowerCase()} effort</span>}
                     <span className="block text-xs font-medium leading-5">{Math.round(entryMinutes(entry))} min {entryTitle(entry)}</span>
                   </button>)}
                   {restDates.has(date) && <p className="py-1 text-xs text-slate-400">Rest day</p>}
@@ -187,8 +205,8 @@ export default function TrainingCalendar({ initialMonth, refreshKey }: { initial
           })}</tbody>
         </table>
       </div>
-      <p className="border-t border-slate-200 px-5 py-3 text-xs text-slate-400">Completed activities and planned workouts are separate entries. On a small screen, scroll sideways to see the full week.</p>
-      <WorkoutDetails entry={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); setRetry(value => value + 1); }} />
+      <p className="border-t border-slate-200 px-5 py-3 text-xs text-slate-400">Recorded activities and prescribed workouts are separate entries. Green workouts reflect reported completion; completed totals count recorded activities only. On a small screen, scroll sideways to see the full week.</p>
+      <WorkoutDetails readOnly={Boolean(demoData)} entry={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); setRetry(value => value + 1); }} />
     </section>
   );
 }

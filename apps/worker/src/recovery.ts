@@ -61,6 +61,9 @@ export function startSyncRecovery(intervalMs = SYNC_RECOVERY_INTERVAL_MS) {
         },
       });
       queue.on("error", () => {}); // Log one safe scan failure below.
+      // Even an empty scan must finish connection initialization before close().
+      // BullMQ 5.66 can otherwise emit a late init error after removing listeners.
+      await queue.waitUntilReady();
       const enqueuedCount = await recoverMissingSyncJobs(queue);
       if (enqueuedCount) console.log(`Sync recovery checked/enqueued ${enqueuedCount} missing jobs`);
     } catch {

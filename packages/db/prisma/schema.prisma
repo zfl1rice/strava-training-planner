@@ -195,6 +195,7 @@ model JobRun {
   leaseExpiresAt DateTime?
 
   planRequest Json?
+  reviewRequest Json?
   jobType    SyncJobType @default(STRAVA_SYNC)
 
   userId     Int
@@ -226,6 +227,7 @@ enum JobStatus {
 enum SyncJobType {
   STRAVA_SYNC
   COMPUTE_PLAN
+  REVIEW_BLOCK
 }
 
 enum Role {

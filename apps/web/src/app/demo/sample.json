@@ -1,0 +1,911 @@
+{
+  "calendar": {
+    "month": "2026-09",
+    "timeZone": "UTC",
+    "plans": [
+      {
+        "id": 1,
+        "updatedAt": "2026-09-06T12:00:00.000Z",
+        "content": {
+          "version": 2,
+          "timeZone": "UTC",
+          "weekStart": "2026-09-07T00:00:00.000Z",
+          "weekEnd": "2026-09-14T00:00:00.000Z",
+          "sourceGeneratedAt": "2026-09-06T12:00:00.000Z",
+          "sourceWeekStarts": [
+            "2026-08-24T00:00:00.000Z",
+            "2026-08-17T00:00:00.000Z",
+            "2026-08-10T00:00:00.000Z"
+          ],
+          "mode": "CUSTOM",
+          "assumptions": [
+            "Hand-authored synthetic demonstration. Desired goals: run 120, bike 240, swim 60 minutes. Not a live AI result or individualized prescription.",
+            "Synthetic evaluation data; recorded history is not proof of tolerance.",
+            "Synthetic block strategy and athlete response, not an inferred capability weakness or proof of tolerance. Weekly goals remain desired training; block adherence requires human review beyond structural validation."
+          ],
+          "goals": {
+            "RUN": 120,
+            "BIKE": 240,
+            "SWIM": 60
+          },
+          "budgets": {
+            "RUN": {
+              "averageMinutes": 120,
+              "activeWeeks": 3,
+              "targetMinutes": 120,
+              "plannedMinutes": 120
+            },
+            "BIKE": {
+              "averageMinutes": 240,
+              "activeWeeks": 3,
+              "targetMinutes": 240,
+              "plannedMinutes": 240
+            },
+            "SWIM": {
+              "averageMinutes": 60,
+              "activeWeeks": 3,
+              "targetMinutes": 60,
+              "plannedMinutes": 60
+            }
+          },
+          "days": [
+            {
+              "kind": "WORKOUT",
+              "id": "2026-09-07-SWIM",
+              "date": "2026-09-07",
+              "templateId": null,
+              "sport": "SWIM",
+              "title": "Easy swim",
+              "effort": "EASY",
+              "explanation": "Easy volume allocated from your weekly target and available days.",
+              "optional": false,
+              "durationMinutes": 30,
+              "blocks": [
+                {
+                  "repeat": 1,
+                  "segments": [
+                    {
+                      "label": "Warm-up",
+                      "seconds": 300,
+                      "instructions": "Begin gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Main",
+                      "seconds": 1200,
+                      "instructions": "Maintain a comfortable, conversational effort.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 3,
+                        "upper": 4
+                      },
+                      "resolved": {
+                        "lower": 3,
+                        "upper": 4,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Cool-down",
+                      "seconds": 300,
+                      "instructions": "Finish gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "WORKOUT",
+              "id": "2026-09-08-BIKE",
+              "date": "2026-09-08",
+              "templateId": null,
+              "sport": "BIKE",
+              "title": "Bike threshold intervals 3 × 8 min",
+              "effort": "HARD",
+              "explanation": "Synthetic example: maintain a focused cycling stimulus while run endurance is the primary block emphasis.",
+              "optional": false,
+              "durationMinutes": 120,
+              "blocks": [
+                {
+                  "repeat": 1,
+                  "segments": [
+                    {
+                      "label": "Warm-up",
+                      "seconds": 900,
+                      "instructions": "Build gradually into a comfortable cadence.",
+                      "target": {
+                        "metric": "FTP_PERCENT",
+                        "lower": 45,
+                        "upper": 65
+                      },
+                      "resolved": {
+                        "lower": 112.5,
+                        "upper": 162.5,
+                        "unit": "WATTS",
+                        "baseline": 250,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "repeat": 3,
+                  "segments": [
+                    {
+                      "label": "Controlled threshold",
+                      "seconds": 480,
+                      "instructions": "Keep the effort smooth and repeatable.",
+                      "target": {
+                        "metric": "FTP_PERCENT",
+                        "lower": 95,
+                        "upper": 100
+                      },
+                      "resolved": {
+                        "lower": 237.5,
+                        "upper": 250,
+                        "unit": "WATTS",
+                        "baseline": 250,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Easy recovery",
+                      "seconds": 240,
+                      "instructions": "Spin gently between efforts.",
+                      "target": {
+                        "metric": "FTP_PERCENT",
+                        "lower": 45,
+                        "upper": 55
+                      },
+                      "resolved": {
+                        "lower": 112.5,
+                        "upper": 137.5,
+                        "unit": "WATTS",
+                        "baseline": 250,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "repeat": 1,
+                  "segments": [
+                    {
+                      "label": "Aerobic endurance",
+                      "seconds": 3540,
+                      "instructions": "Settle into steady aerobic riding.",
+                      "target": {
+                        "metric": "FTP_PERCENT",
+                        "lower": 60,
+                        "upper": 70
+                      },
+                      "resolved": {
+                        "lower": 150,
+                        "upper": 175,
+                        "unit": "WATTS",
+                        "baseline": 250,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Cool-down",
+                      "seconds": 600,
+                      "instructions": "Ease down gradually.",
+                      "target": {
+                        "metric": "FTP_PERCENT",
+                        "lower": 40,
+                        "upper": 50
+                      },
+                      "resolved": {
+                        "lower": 100,
+                        "upper": 125,
+                        "unit": "WATTS",
+                        "baseline": 250,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "WORKOUT",
+              "id": "2026-09-09-RUN",
+              "date": "2026-09-09",
+              "templateId": null,
+              "sport": "RUN",
+              "title": "Easy run",
+              "effort": "EASY",
+              "explanation": "Easy volume allocated from your weekly target and available days.",
+              "optional": false,
+              "durationMinutes": 50,
+              "blocks": [
+                {
+                  "repeat": 1,
+                  "segments": [
+                    {
+                      "label": "Warm-up",
+                      "seconds": 300,
+                      "instructions": "Begin gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Main",
+                      "seconds": 2400,
+                      "instructions": "Maintain a comfortable, conversational effort.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 3,
+                        "upper": 4
+                      },
+                      "resolved": {
+                        "lower": 3,
+                        "upper": 4,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Cool-down",
+                      "seconds": 300,
+                      "instructions": "Finish gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "REST",
+              "date": "2026-09-10",
+              "title": "Rest day",
+              "durationMinutes": 0
+            },
+            {
+              "kind": "WORKOUT",
+              "id": "2026-09-11-SWIM",
+              "date": "2026-09-11",
+              "templateId": null,
+              "sport": "SWIM",
+              "title": "Easy swim",
+              "effort": "EASY",
+              "explanation": "Easy volume allocated from your weekly target and available days.",
+              "optional": false,
+              "durationMinutes": 30,
+              "blocks": [
+                {
+                  "repeat": 1,
+                  "segments": [
+                    {
+                      "label": "Warm-up",
+                      "seconds": 300,
+                      "instructions": "Begin gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Main",
+                      "seconds": 1200,
+                      "instructions": "Maintain a comfortable, conversational effort.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 3,
+                        "upper": 4
+                      },
+                      "resolved": {
+                        "lower": 3,
+                        "upper": 4,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Cool-down",
+                      "seconds": 300,
+                      "instructions": "Finish gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "WORKOUT",
+              "id": "2026-09-12-BIKE",
+              "date": "2026-09-12",
+              "templateId": null,
+              "sport": "BIKE",
+              "title": "Easy ride",
+              "effort": "EASY",
+              "explanation": "Easy volume allocated from your weekly target and available days.",
+              "optional": false,
+              "durationMinutes": 120,
+              "blocks": [
+                {
+                  "repeat": 1,
+                  "segments": [
+                    {
+                      "label": "Warm-up",
+                      "seconds": 300,
+                      "instructions": "Begin gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Main",
+                      "seconds": 6600,
+                      "instructions": "Maintain a comfortable, conversational effort.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 3,
+                        "upper": 4
+                      },
+                      "resolved": {
+                        "lower": 3,
+                        "upper": 4,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Cool-down",
+                      "seconds": 300,
+                      "instructions": "Finish gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "WORKOUT",
+              "id": "2026-09-13-RUN",
+              "date": "2026-09-13",
+              "templateId": null,
+              "sport": "RUN",
+              "title": "Easy run",
+              "effort": "EASY",
+              "explanation": "Easy volume allocated from your weekly target and available days.",
+              "optional": false,
+              "durationMinutes": 70,
+              "blocks": [
+                {
+                  "repeat": 1,
+                  "segments": [
+                    {
+                      "label": "Warm-up",
+                      "seconds": 300,
+                      "instructions": "Begin gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Main",
+                      "seconds": 3600,
+                      "instructions": "Maintain a comfortable, conversational effort.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 3,
+                        "upper": 4
+                      },
+                      "resolved": {
+                        "lower": 3,
+                        "upper": 4,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    },
+                    {
+                      "label": "Cool-down",
+                      "seconds": 300,
+                      "instructions": "Finish gently.",
+                      "target": {
+                        "metric": "RPE",
+                        "lower": 2,
+                        "upper": 3
+                      },
+                      "resolved": {
+                        "lower": 2,
+                        "upper": 3,
+                        "unit": "RPE",
+                        "baseline": null,
+                        "recordedAt": "2026-09-06T12:00:00.000Z"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "totalMinutes": 420,
+          "analysis": {
+            "deviations": [
+              {
+                "type": "LONG_SESSION_INCREASE",
+                "sport": "RUN",
+                "dates": [],
+                "measurements": {
+                  "proposedLongestMinutes": 70,
+                  "previousLongestMinutes": 60,
+                  "recordedWindowLongestMinutes": 60
+                },
+                "explanation": "Longest session exceeds the previous recorded week; longer-window evidence may differ."
+              }
+            ],
+            "hardSessions": {
+              "total": 1,
+              "bySport": {
+                "RUN": 0,
+                "BIKE": 1,
+                "SWIM": 0
+              },
+              "sameDayPairs": 0,
+              "consecutiveDayPairs": 0,
+              "recoveryHours": null
+            }
+          },
+          "developmentBlock": {
+            "id": 101,
+            "revision": 1,
+            "phase": "GENERAL_PREPARATION",
+            "startDate": "2026-08-31",
+            "plannedEndDate": "2026-09-28",
+            "plannedWeeks": 4,
+            "weekIndex": 1,
+            "weekRole": "DEVELOPMENT",
+            "focuses": [
+              {
+                "sport": "RUN",
+                "capability": "LONG_ENDURANCE",
+                "role": "PRIMARY",
+                "progressionStrategy": "LONG_SESSION",
+                "rationale": "The supplied emphasis is run durability; preserve useful stimulus while considering a small long-session progression."
+              },
+              {
+                "sport": "BIKE",
+                "capability": "THRESHOLD",
+                "role": "SECONDARY",
+                "progressionStrategy": "TIME_AT_INTENSITY",
+                "rationale": "Useful secondary threshold development; do not simultaneously increase all cycling variables."
+              },
+              {
+                "sport": "SWIM",
+                "capability": "SUSTAINED_ENDURANCE",
+                "role": "MAINTENANCE",
+                "progressionStrategy": "MAINTAIN",
+                "rationale": "Maintain sufficient swim exposure while the main development emphasis is elsewhere."
+              }
+            ],
+            "raceIds": [],
+            "rationale": "Synthetic explicit strategy: develop run durability, support cycling threshold, and maintain swim endurance. Progress only the smallest useful variable supported by response evidence.",
+            "previousReview": null
+          }
+        },
+        "workoutStates": []
+      }
+    ],
+    "activities": [
+      {
+        "id": 1,
+        "name": "Sample swim activity",
+        "type": "SWIM",
+        "startedAt": "2026-09-01T12:00:00Z",
+        "durationSeconds": 1800,
+        "distanceMeters": 1200,
+        "stravaActivityId": null
+      },
+      {
+        "id": 2,
+        "name": "Sample bike activity",
+        "type": "BIKE",
+        "startedAt": "2026-09-02T12:00:00Z",
+        "durationSeconds": 7200,
+        "distanceMeters": 50000,
+        "stravaActivityId": null
+      },
+      {
+        "id": 3,
+        "name": "Sample run activity",
+        "type": "RUN",
+        "startedAt": "2026-09-03T12:00:00Z",
+        "durationSeconds": 3000,
+        "distanceMeters": 9000,
+        "stravaActivityId": null
+      },
+      {
+        "id": 4,
+        "name": "Sample swim activity",
+        "type": "SWIM",
+        "startedAt": "2026-09-05T12:00:00Z",
+        "durationSeconds": 1800,
+        "distanceMeters": 1200,
+        "stravaActivityId": null
+      },
+      {
+        "id": 5,
+        "name": "Sample bike activity",
+        "type": "BIKE",
+        "startedAt": "2026-09-06T12:00:00Z",
+        "durationSeconds": 7200,
+        "distanceMeters": 50000,
+        "stravaActivityId": null
+      },
+      {
+        "id": 6,
+        "name": "Sample run activity",
+        "type": "RUN",
+        "startedAt": "2026-09-07T12:00:00Z",
+        "durationSeconds": 4200,
+        "distanceMeters": 9000,
+        "stravaActivityId": null
+      }
+    ]
+  },
+  "block": {
+    "block": {
+      "id": 101,
+      "userId": 1,
+      "revision": 2,
+      "status": "ACTIVE",
+      "proposal": {
+        "version": 1,
+        "startDate": "2026-08-31",
+        "phase": "GENERAL_PREPARATION",
+        "focuses": [
+          {
+            "sport": "RUN",
+            "capability": "LONG_ENDURANCE",
+            "role": "PRIMARY",
+            "progressionStrategy": "LONG_SESSION",
+            "rationale": "The supplied emphasis is run durability; preserve useful stimulus while considering a small long-session progression."
+          },
+          {
+            "sport": "BIKE",
+            "capability": "THRESHOLD",
+            "role": "SECONDARY",
+            "progressionStrategy": "TIME_AT_INTENSITY",
+            "rationale": "Useful secondary threshold development; do not simultaneously increase all cycling variables."
+          },
+          {
+            "sport": "SWIM",
+            "capability": "SUSTAINED_ENDURANCE",
+            "role": "MAINTENANCE",
+            "progressionStrategy": "MAINTAIN",
+            "rationale": "Maintain sufficient swim exposure while the main development emphasis is elsewhere."
+          }
+        ],
+        "weekPattern": [
+          "DEVELOPMENT",
+          "DEVELOPMENT",
+          "DEVELOPMENT",
+          "RECOVERY"
+        ],
+        "raceIds": [],
+        "rationale": "Synthetic explicit strategy: develop run durability, support cycling threshold, and maintain swim endurance. Progress only the smallest useful variable supported by response evidence."
+      },
+      "reviews": [
+        {
+          "id": 1,
+          "revision": 2,
+          "createdAt": "2026-09-14T12:00:00.000Z",
+          "request": {
+            "reviewedWeekStart": "2026-09-07",
+            "effectiveWeekStart": "2026-09-14",
+            "decision": "PROGRESS",
+            "rationale": "Synthetic example: athlete-reported run completion supports a small primary progression; hold cycling stimulus and maintain swimming. Exact target execution remains unverified.",
+            "focusGuidance": [
+              {
+                "sport": "RUN",
+                "capability": "LONG_ENDURANCE",
+                "action": "PROGRESS",
+                "rationale": "Illustrative guidance, not a measured fitness conclusion.",
+                "focusId": "RUN:LONG_ENDURANCE",
+                "role": "PRIMARY",
+                "progressionStrategy": "LONG_SESSION"
+              },
+              {
+                "sport": "BIKE",
+                "capability": "THRESHOLD",
+                "action": "HOLD",
+                "rationale": "Illustrative guidance, not a measured fitness conclusion.",
+                "focusId": "BIKE:THRESHOLD",
+                "role": "SECONDARY",
+                "progressionStrategy": "TIME_AT_INTENSITY"
+              },
+              {
+                "sport": "SWIM",
+                "capability": "SUSTAINED_ENDURANCE",
+                "action": "MAINTAIN",
+                "rationale": "Illustrative guidance, not a measured fitness conclusion.",
+                "focusId": "SWIM:SUSTAINED_ENDURANCE",
+                "role": "MAINTENANCE",
+                "progressionStrategy": "MAINTAIN"
+              }
+            ],
+            "remainingWeekPattern": [
+              "DEVELOPMENT",
+              "RECOVERY"
+            ]
+          },
+          "response": {
+            "capturedAt": "2026-09-14T12:00:00.000Z",
+            "sports": [
+              {
+                "sport": "RUN",
+                "plannedMinutes": 120,
+                "plannedSessions": 2,
+                "plannedLongestMinutes": 60,
+                "reportedCompletedPlannedMinutes": 120,
+                "reportedCompletedSessions": 2,
+                "recordedActivityMinutes": null,
+                "recordedActivitySessions": null,
+                "recordedLongestMinutes": null,
+                "activityCoverage": {
+                  "linkedWorkouts": 0,
+                  "plannedWorkouts": 2
+                },
+                "unlinkedActivityMinutes": 0,
+                "unlinkedActivitySessions": 0
+              },
+              {
+                "sport": "BIKE",
+                "plannedMinutes": 240,
+                "plannedSessions": 2,
+                "plannedLongestMinutes": 120,
+                "reportedCompletedPlannedMinutes": 240,
+                "reportedCompletedSessions": 2,
+                "recordedActivityMinutes": null,
+                "recordedActivitySessions": null,
+                "recordedLongestMinutes": null,
+                "activityCoverage": {
+                  "linkedWorkouts": 0,
+                  "plannedWorkouts": 2
+                },
+                "unlinkedActivityMinutes": 0,
+                "unlinkedActivitySessions": 0
+              },
+              {
+                "sport": "SWIM",
+                "plannedMinutes": 60,
+                "plannedSessions": 2,
+                "plannedLongestMinutes": 30,
+                "reportedCompletedPlannedMinutes": 60,
+                "reportedCompletedSessions": 2,
+                "recordedActivityMinutes": null,
+                "recordedActivitySessions": null,
+                "recordedLongestMinutes": null,
+                "activityCoverage": {
+                  "linkedWorkouts": 0,
+                  "plannedWorkouts": 2
+                },
+                "unlinkedActivityMinutes": 0,
+                "unlinkedActivitySessions": 0
+              }
+            ],
+            "feedback": [],
+            "feedbackTruncated": false,
+            "performanceEvidenceIds": [],
+            "notes": [
+              "Synthetic demonstration only."
+            ],
+            "restrictions": [],
+            "availability": [
+              {
+                "date": "2026-09-14",
+                "settings": {
+                  "availableMinutes": 1440,
+                  "maxSessions": 3,
+                  "allowedSports": [
+                    "RUN",
+                    "BIKE",
+                    "SWIM"
+                  ],
+                  "poolAccess": true
+                },
+                "note": null
+              },
+              {
+                "date": "2026-09-15",
+                "settings": {
+                  "availableMinutes": 1440,
+                  "maxSessions": 3,
+                  "allowedSports": [
+                    "RUN",
+                    "BIKE",
+                    "SWIM"
+                  ],
+                  "poolAccess": true
+                },
+                "note": null
+              },
+              {
+                "date": "2026-09-16",
+                "settings": {
+                  "availableMinutes": 1440,
+                  "maxSessions": 3,
+                  "allowedSports": [
+                    "RUN",
+                    "BIKE",
+                    "SWIM"
+                  ],
+                  "poolAccess": true
+                },
+                "note": null
+              },
+              {
+                "date": "2026-09-17",
+                "settings": {
+                  "availableMinutes": 1440,
+                  "maxSessions": 3,
+                  "allowedSports": [
+                    "RUN",
+                    "BIKE",
+                    "SWIM"
+                  ],
+                  "poolAccess": true
+                },
+                "note": null
+              },
+              {
+                "date": "2026-09-18",
+                "settings": {
+                  "availableMinutes": 1440,
+                  "maxSessions": 3,
+                  "allowedSports": [
+                    "RUN",
+                    "BIKE",
+                    "SWIM"
+                  ],
+                  "poolAccess": true
+                },
+                "note": null
+              },
+              {
+                "date": "2026-09-19",
+                "settings": {
+                  "availableMinutes": 1440,
+                  "maxSessions": 3,
+                  "allowedSports": [
+                    "RUN",
+                    "BIKE",
+                    "SWIM"
+                  ],
+                  "poolAccess": true
+                },
+                "note": null
+              },
+              {
+                "date": "2026-09-20",
+                "settings": {
+                  "availableMinutes": 1440,
+                  "maxSessions": 3,
+                  "allowedSports": [
+                    "RUN",
+                    "BIKE",
+                    "SWIM"
+                  ],
+                  "poolAccess": true
+                },
+                "note": null
+              }
+            ]
+          },
+          "source": {
+            "provider": "SIMULATED",
+            "version": "block-review-v3",
+            "model": null,
+            "responseId": null
+          }
+        }
+      ],
+      "createdAt": "2026-08-30T12:00:00.000Z",
+      "updatedAt": "2026-09-14T12:00:00.000Z"
+    },
+    "review": null,
+    "reviewWeeks": [],
+    "currentMonday": "2026-09-14"
+  }
+}

@@ -1,0 +1,2 @@
+ALTER TYPE "SyncJobType" ADD VALUE 'REVIEW_BLOCK';
+ALTER TABLE "JobRun" ADD COLUMN "reviewRequest" JSONB;

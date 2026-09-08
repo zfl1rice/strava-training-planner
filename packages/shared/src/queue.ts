@@ -3,6 +3,7 @@ export const QUEUES = {
 } as const;
 
 export const JOBS = {
+  reviewBlock: "review_block",
   generatePlan: "generate_plan",
   ping: "ping",
   syncAthlete: "sync_athlete",
@@ -15,6 +16,7 @@ export const SYNC_LEASE_MS = 120000;
 export const syncJobId = (jobRunId: number) => `sync-${jobRunId}`;
 
 export const planJobId = (jobRunId: number) => `plan-${jobRunId}`;
+export const reviewJobId = (jobRunId: number) => `review-${jobRunId}`;
 export const PLAN_ATTEMPTS = 3;
 export const PLAN_LEASE_MS = 120000;
 export const PLAN_HEARTBEAT_MS = 20000;

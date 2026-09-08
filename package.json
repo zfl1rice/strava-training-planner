@@ -42,7 +42,13 @@
     "evaluate:block-review:openai": "npm run build:packages && npm run build --workspace @app/worker && node scripts/evaluate-block-reviews.mjs --openai",
     "blocks": "npm run build:packages && node scripts/manage-blocks.mjs",
     "db:generate": "npm exec --workspace @pkg/db -- prisma generate",
-    "db:deploy": "npm exec --workspace @pkg/db -- prisma migrate deploy"
+    "db:deploy": "npm exec --workspace @pkg/db -- prisma migrate deploy",
+    "demo:build": "npm run build:packages && node scripts/build-demo.mjs",
+    "test": "npm run build:packages && node scripts/test-all.mjs",
+    "test:review-jobs": "npm run build:packages && node scripts/test-strava.mjs review-jobs",
+    "build:web": "npm run db:generate && npm run build:packages && npm run build --workspace @app/web",
+    "build:worker": "npm run db:generate && npm run build:packages && npm run build --workspace @app/worker",
+    "check:local": "node scripts/check-local.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

@@ -1,3 +1,5 @@
+> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+
 > Latest structural fix: [BlockReview focus identity](block-review-focus-identity.md).
 > Review ID resolution, exact coverage diagnostics, server-owned metadata, and legacy history compatibility.
 

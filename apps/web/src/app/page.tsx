@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { getStravaConnectionStatus, getSyncDashboard, getPlannerState } from "@pkg/db";
 import ActivityDashboard from "./activity-dashboard";
@@ -43,6 +44,16 @@ export default async function Home({ searchParams }: {
         <h1 className="text-2xl font-semibold tracking-tight">Training planner</h1>
         <p className="text-sm text-slate-500">Your training history and the week ahead, in one place.</p>
       </header>
+      {!dashboard && <section className="space-y-4 rounded-xl border bg-white p-6">
+        <h2 className="text-3xl font-semibold">AI Triathlon Training Planner</h2>
+        <p className="max-w-3xl text-slate-600">Turn training history, goals, and availability into structured swim, bike, and run workouts. Review your response to each week and carry that guidance into a persistent training strategy.</p>
+        <ul className="grid gap-3 text-sm sm:grid-cols-2">
+          <li>Strava OAuth and asynchronous, idempotent activity ingestion</li><li>PostgreSQL training history and saved plans</li>
+          <li>Redis/BullMQ worker for OpenAI generation</li><li>Deterministic validation of structured workouts</li>
+          <li>Multi-week development blocks</li><li>Weekly reviews with progression and recovery guidance</li>
+        </ul>
+        <Link href="/demo" className="inline-block rounded bg-blue-700 px-5 py-3 font-medium text-white">View Demo ? no account needed</Link>
+      </section>}
       {message && <p role="status" className="rounded border p-4">{message}</p>}
       {storageError && <p role="alert">Connection status is unavailable. Check that Postgres is running.</p>}
       <section className="flex flex-wrap items-center justify-between gap-4 text-sm">

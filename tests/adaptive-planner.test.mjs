@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { planningSnapshotsEqual } from "../packages/db/src/planning-snapshots.ts";
 import { after, beforeEach, test } from "node:test";
 import { FlexiblePlanSchema, calendarWorkouts, generateWeeklyPlan, summarizeTraining, validateStoredPlan, emptyAthleteProfile, defaultDayAvailability, generateFlexiblePlan, resolveWorkoutTargets, JOBS, QUEUES, planJobId, bullConnectionFromUrl, runPlanGeneration, deterministicPlanProvider } from "@pkg/shared";
 import { prisma, getTrainingCalendar, buildPlanningContext, saveAthleteProfile, saveWeeklyGoals, generateAndSaveFlexiblePlan, getPlanningSettings, updatePlanningSettings, updateWorkoutFeedback, createOrReusePlanRun, executePlanRun, createOrReuseSyncRun } from "@pkg/db";
@@ -187,6 +188,37 @@ test("generation requests reuse pending work, exclude sync, and consume a real t
     assert.equal((await prisma.weeklyPlan.findUnique({ where: { id: saved.id } })).updatedAt.toISOString(), saved.updatedAt.toISOString());
     assert.equal((await prisma.jobRun.findUnique({ where: { id: one.id } })).attemptsStarted, 1);
   } finally { await worker.close(); await events.close(); await testJob?.remove(); await queue.close(); }
+});
+
+test("snapshot comparison tolerates decimal round-off but rejects actual input changes", () => {
+  const saved = { id: 41, minutes: 20.56666666666667, date: "2026-09-14", goals: [120, 240] };
+  assert.equal(planningSnapshotsEqual(saved, { ...saved, minutes: 1234 / 60 }), true);
+  for (const changed of [
+    { ...saved, id: 42 }, { ...saved, minutes: saved.minutes + 1 / 60 },
+    { ...saved, minutes: saved.minutes + 1e-9 }, { ...saved, date: "2026-09-15" },
+    { ...saved, goals: [240, 120] }, { ...saved, added: null }, { ...saved, minutes: null },
+  ]) assert.equal(planningSnapshotsEqual(saved, changed), false);
+});
+
+test("terminal generation logs expose the saved cancellation reason", async () => {
+  const { processJob } = await import("../apps/worker/src/processor.ts");
+  const run = await createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" });
+  await prisma.jobRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: "Planning inputs changed; existing plan was kept." } });
+  await assert.rejects(processJob({ name: JOBS.generatePlan, data: { jobRunId: run.id } }), /Planning inputs changed; existing plan was kept/);
+});
+
+test("fractional activity minutes survive persisted generation snapshots and regeneration", async () => {
+  await saveWeeklyGoals(user.id, { RUN: 120, BIKE: 240, SWIM: 0 });
+  await prisma.activity.create({ data: { userId: user.id, type: "RUN", source: "MANUAL",
+    startedAt: new Date(Date.now() - 8 * 86400000), durationSeconds: 1234, distanceMeters: 3210 } });
+  let calls = 0;
+  const provider = async (...args) => { calls++; return deterministicPlanProvider(...args); };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const run = await createOrReusePlanRun(user.id, { scope: "NEXT_WEEK" });
+    assert.equal((await executePlanRun(run.id, provider)).status, "SUCCESS");
+  }
+  assert.equal(calls, 2);
+  assert.equal(await prisma.weeklyPlan.count({ where: { userId: user.id } }), 1);
 });
 
 test("missing Redis generation jobs recover from Postgres without enlarging payloads", async () => {

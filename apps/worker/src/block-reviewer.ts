@@ -88,8 +88,7 @@ export function buildOpenAIBlockReviewInput(raw: BlockReviewContext) {
   } };
 }
 
-// Opt-in evaluator only. The production review service rejects live providers
-// until persistent BullMQ review dispatch is explicitly implemented/enabled.
+// Shared adapter for the opt-in evaluator and persistent REVIEW_BLOCK worker jobs.
 export function createOpenAIBlockReviewer(config: OpenAIPlannerConfig, client?: OpenAI): BlockReviewer {
   const respond = createStructuredResponder(config, client);
   return { source: "OPENAI", review: (context, attempt) => {

@@ -65,8 +65,8 @@ export async function buildBlockReviewContext(userId: number, blockId: number, w
   return database ? read(database) : prisma.$transaction(read, { isolationLevel: "RepeatableRead", timeout: 15000 });
 }
 
-/** Async snapshot/compare/commit service ready for a future worker request.
- * Live reviewers are currently evaluation-only; no unqueued production API calls.
+/** Direct simulated-review helper retained for scripts/tests.
+ * Live application calls must use createOrReuseReviewRun/executeReviewRun.
  */
 export async function reviewAndSaveBlockWeek(userId: number, blockId: number, expectedRevision: number,
   weekStart: string, reviewer: BlockReviewer, now?: Date) {

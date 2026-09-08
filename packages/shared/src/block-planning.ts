@@ -23,6 +23,7 @@ export interface BlockPlanningContext {
   athlete: PlanningContext["athlete"];
   planningObjective: PlanningContext["planningObjective"];
   goals: PlanningContext["goals"];
+  trainingFocus?: AthleteProfile["trainingFocus"];
   races: PlanningContext["races"];
   performanceProfile: PlanningContext["performanceProfile"];
   recentTraining: PlanningContext["recentTraining"];
@@ -68,14 +69,19 @@ export const deterministicBlockPlanner: BlockPlanner = {
       const sports = PlanSportSchema.options.filter(sport => context.goals[sport] !== 0);
       if (!sports.length) throw new Error("Set a nonzero or history-based sport goal before creating a block");
       const previousPrimary = context.recentBlocks[0]?.proposal.focuses.find(focus => focus.role === "PRIMARY")?.sport;
-      const primary = sports[(sports.indexOf(previousPrimary!) + 1) % sports.length]!;
+      const rotated = sports[(sports.indexOf(previousPrimary!) + 1) % sports.length]!;
+      const preference = context.trainingFocus;
+      const preferred = preference ? sports.filter(sport => preference[sport] === Math.max(...sports.map(value => preference[value]))) : sports;
+      const primary = preferred.includes(rotated) ? rotated : preferred[0]!;
       focuses = sports.map((sport): DevelopmentFocus => ({
         sport, capability: sport === "SWIM" ? "SUSTAINED_ENDURANCE" : "LONG_ENDURANCE",
         role: sport === primary ? "PRIMARY" : "MAINTENANCE",
         progressionStrategy: sport === primary ? "LONG_SESSION" : "MAINTAIN",
         rationale: sport === primary
-          ? "Broad development emphasis, rotated from the recent primary sport. This is not a diagnosed weakness; progression still needs response evidence."
-          : "Maintain broad endurance while another sport receives development emphasis.",
+          ? preference ? `Your saved ${preference[sport]}% emphasis is highest among sports with an enabled weekly goal. This block prioritizes endurance development in this sport; progression still depends on training response.`
+            : "Broad development emphasis, rotated from the recent primary sport. This is not a diagnosed weakness; progression still needs response evidence."
+          : preference ? `Your saved emphasis is ${preference[sport]}%. Keep supporting endurance exposure while ${primary.toLowerCase()} receives the main development focus. Your weekly minute goal is unchanged.`
+            : "Maintain broad endurance while another sport receives development emphasis.",
       }));
     }
     const defaultPattern = direction.phase === "TAPER" ? ["TAPER"] : direction.phase === "RECOVERY_TRANSITION" ? ["RECOVERY"] : [...DEFAULT_BLOCK_WEEK_PATTERN];

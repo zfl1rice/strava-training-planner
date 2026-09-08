@@ -1,5 +1,6 @@
 import { ProviderExecutionSchema, ProviderCallMetadataSchema, PlanProviderError, PLAN_HEARTBEAT_MS, PLAN_LEASE_MS, deterministicPlanProvider, type ProviderCallMetadata, GenerationInputSchema, generatePlanWithCorrections, ProposalAttemptsExhaustedError, type PlanProvider, GenerationRequestSchema, LocalDateSchema, PLAN_ATTEMPTS, addCalendarDays, calendarMonday, localDateAt } from "@pkg/shared";
 import { prisma } from "./client.js";
+import type { JobStatus } from "@prisma/client";
 import { lockUserTraining } from "./training-lock.js";
 import { prepareGenerationInput, generationInputIsCurrent, saveGeneratedPlan, StaleGenerationError, PlanSyncInProgressError } from "./planner.js";
 const StoredRequestSchema = GenerationRequestSchema.extend({ weekStart: LocalDateSchema, snapshot: GenerationInputSchema.optional(), providerExecution: ProviderExecutionSchema.optional() });
@@ -10,6 +11,7 @@ export async function createOrReusePlanRun(userId: number, input: unknown, now =
   const request = GenerationRequestSchema.parse(input);
   return prisma.$transaction(async database => {
     await lockUserTraining(database, userId);
+    if (await database.jobRun.findFirst({ where: { userId, jobType: "REVIEW_BLOCK", status: { in: ["PENDING", "RUNNING"] } } })) throw new TrainingBusyError("Wait for block review to finish before generating a plan.");
     if (await database.jobRun.findFirst({ where: { userId, jobType: "STRAVA_SYNC", status: { in: ["PENDING", "RUNNING"] } } })) throw new TrainingBusyError("Wait for activity sync to finish before generating a plan.");
     const existing = await database.jobRun.findFirst({ where: { userId, jobType: "COMPUTE_PLAN", status: { in: ["PENDING", "RUNNING"] } } });
     const user = await database.user.findUniqueOrThrow({ where: { id: userId } });
@@ -24,24 +26,26 @@ export async function createOrReusePlanRun(userId: number, input: unknown, now =
   });
 }
 
-export async function executePlanRun(id: number, provider?: PlanProvider, options: { heartbeatIntervalMs?: number } = {}) {
+export async function executePlanRun(id: number, provider?: PlanProvider, options: { heartbeatIntervalMs?: number } = {}): Promise<{
+  status: JobStatus | "DEFERRED"; error?: string | null; until?: number;
+}> {
   const row = await prisma.jobRun.findUnique({ where: { id } });
   if (!row || row.jobType !== "COMPUTE_PLAN") throw new Error("Plan request not found");
   const claim = await prisma.$transaction(async database => {
     await lockUserTraining(database, row.userId);
     const current = await database.jobRun.findUniqueOrThrow({ where: { id } });
-    if (!["PENDING", "RUNNING"].includes(current.status)) return { terminal: current.status };
+    if (!["PENDING", "RUNNING"].includes(current.status)) return { terminal: current.status, error: current.error };
     if ((current.leaseExpiresAt?.getTime() ?? 0) > Date.now() || (current.nextRetryAt?.getTime() ?? 0) > Date.now()) return { deferred: Math.max(current.leaseExpiresAt?.getTime() ?? 0, current.nextRetryAt?.getTime() ?? 0) };
     if (current.attemptsStarted >= PLAN_ATTEMPTS) {
       await database.jobRun.update({ where: { id }, data: { status: "FAILED", error: "Generation attempt limit reached. Request generation again.", finishedAt: new Date(), leaseExpiresAt: null } });
-      return { terminal: "FAILED" };
+      return { terminal: "FAILED" as const, error: "Generation attempt limit reached. Request generation again." };
     }
     const attempt = current.attemptsStarted + 1;
     await database.jobRun.update({ where: { id }, data: { status: "RUNNING", attemptsStarted: attempt,
       startedAt: new Date(), error: null, nextRetryAt: null, leaseExpiresAt: new Date(Date.now() + PLAN_LEASE_MS) } });
     return { attempt };
   });
-  if ("terminal" in claim) return { status: claim.terminal };
+  if (claim.terminal !== undefined) return { status: claim.terminal, error: claim.error };
   if ("deferred" in claim) return { status: "DEFERRED", until: claim.deferred };
   const cancellation = new AbortController();
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
@@ -96,16 +100,17 @@ export async function executePlanRun(id: number, provider?: PlanProvider, option
       if (lastResponse) content.generation = { provider: lastResponse.provider, model: lastResponse.model, responseId: lastResponse.responseId, jobRunId: id };
       await saveGeneratedPlan(input, content, database);
       await database.jobRun.update({ where: { id }, data: { status: "SUCCESS", finishedAt: new Date(), leaseExpiresAt: null, nextRetryAt: null, error: null } });
-      return { status: "SUCCESS" };
+      return { status: "SUCCESS" as const };
     }, { timeout: 15000 });
   } catch (error) {
     if (error instanceof StaleGenerationError || error instanceof ProposalAttemptsExhaustedError || (error instanceof PlanProviderError && !error.retryable)) {
       const status = error instanceof StaleGenerationError ? "CANCELLED" : "FAILED";
+      const message = error instanceof StaleGenerationError || error instanceof PlanProviderError ? error.message : `Proposal invalid after ${error.attempts} attempts: ${error.issues.map(issue => `${issue.code}: ${issue.message}`).join("; ").slice(0, 3000)}`;
       await prisma.jobRun.updateMany({ where: { id, status: "RUNNING", attemptsStarted: claim.attempt }, data: {
         status, leaseExpiresAt: null, nextRetryAt: null, finishedAt: new Date(),
-        error: error instanceof StaleGenerationError || error instanceof PlanProviderError ? error.message : `Proposal invalid after ${error.attempts} attempts: ${error.issues.map(issue => `${issue.code}: ${issue.message}`).join("; ").slice(0, 3000)}`,
+        error: message,
       } });
-      return { status };
+      return { status, error: message };
     }
     const retry = claim.attempt! < PLAN_ATTEMPTS;
     await prisma.jobRun.updateMany({ where: { id, status: "RUNNING", attemptsStarted: claim.attempt }, data: {
@@ -120,14 +125,14 @@ export async function executePlanRun(id: number, provider?: PlanProvider, option
   }
 }
 
-export function listUnfinishedPlanRuns(afterId = 0) {
-  return prisma.jobRun.findMany({ where: { id: { gt: afterId }, jobType: "COMPUTE_PLAN", status: { in: ["PENDING", "RUNNING"] } }, orderBy: { id: "asc" }, take: 100 });
+export function listUnfinishedPlanRuns(afterId = 0, jobType: "COMPUTE_PLAN" | "REVIEW_BLOCK" = "COMPUTE_PLAN") {
+  return prisma.jobRun.findMany({ where: { id: { gt: afterId }, jobType, status: { in: ["PENDING", "RUNNING"] } }, orderBy: { id: "asc" }, take: 100 });
 }
 
-export async function failAbandonedPlanRun(id: number, attempt: number) {
-  await prisma.jobRun.updateMany({ where: { id, jobType: "COMPUTE_PLAN", attemptsStarted: attempt, status: { in: ["PENDING", "RUNNING"] },
+export async function failAbandonedPlanRun(id: number, attempt: number, jobType: "COMPUTE_PLAN" | "REVIEW_BLOCK" = "COMPUTE_PLAN") {
+  await prisma.jobRun.updateMany({ where: { id, jobType, attemptsStarted: attempt, status: { in: ["PENDING", "RUNNING"] },
     OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: new Date() } }] },
-    data: { status: "FAILED", finishedAt: new Date(), leaseExpiresAt: null, error: "Generation stopped before completion. Request generation again." } });
+    data: { status: "FAILED", finishedAt: new Date(), leaseExpiresAt: null, error: "Worker stopped before completion. Request the operation again." } });
 }
 
 // Renewal is fenced by attempt and lease, and checks for settings edits as well as

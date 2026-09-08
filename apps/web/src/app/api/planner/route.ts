@@ -1,6 +1,6 @@
 import { getPlanQueue, waitForQueue } from "@/lib/queue";
 import { NextRequest, NextResponse } from "next/server";
-import { createOrReusePlanRun, TrainingBusyError, getPlannerState, saveWeeklyGoals, PlanSyncInProgressError, PlanHasProtectedWorkoutsError } from "@pkg/db";
+import { createInitialTrainingBlock, createOrReusePlanRun, TrainingBusyError, getPlannerState, saveWeeklyGoals, PlanSyncInProgressError, PlanHasProtectedWorkoutsError } from "@pkg/db";
 import { WeeklyGoalsSchema, GenerationRequestSchema, JOBS, planJobId } from "@pkg/shared";
 import { getStravaConfig, SESSION_COOKIE, userFromSession } from "@/lib/strava-auth";
 
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     try { body = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "Invalid generation request" }, 400); }
     const parsed = GenerationRequestSchema.safeParse(body);
     if (!parsed.success) return json({ error: "Choose next week or the remaining week." }, 400);
+    await createInitialTrainingBlock(user.id);
     const run = await createOrReusePlanRun(user.id, parsed.data);
     try {
       const queue = getPlanQueue(); await waitForQueue(queue);

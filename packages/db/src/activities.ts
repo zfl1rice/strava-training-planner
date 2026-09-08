@@ -7,7 +7,7 @@ import { lockUserTraining } from "./training-lock.js";
 export async function createOrReuseSyncRun(userId: number) {
   return prisma.$transaction(async (tx) => {
     await lockUserTraining(tx, userId);
-    if (await tx.jobRun.findFirst({ where: { userId, jobType: "COMPUTE_PLAN", status: { in: ["PENDING", "RUNNING"] } } })) throw new TrainingBusyError("Wait for plan generation to finish before syncing activities.");
+    if (await tx.jobRun.findFirst({ where: { userId, jobType: { in: ["COMPUTE_PLAN", "REVIEW_BLOCK"] }, status: { in: ["PENDING", "RUNNING"] } } })) throw new TrainingBusyError("Wait for plan generation or review to finish before syncing activities.");
     const connection = await tx.stravaConnection.findUnique({ where: { userId }, select: { userId: true } });
     if (!connection) throw new Error("Strava is not connected");
     const activeSync = await tx.jobRun.findFirst({

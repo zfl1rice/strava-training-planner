@@ -12,6 +12,13 @@ import {
 import { prisma } from "./client.js";
 import { buildPlanningContext } from "./planning-context.js";
 import { lockUserTraining } from "./training-lock.js";
+import { TrainingBusyError } from "./plan-jobs.js";
+
+async function requireIdleTraining(userId: number, database: Prisma.TransactionClient) {
+  if (await database.jobRun.findFirst({ where: { userId, jobType: "REVIEW_BLOCK", status: { in: ["PENDING", "RUNNING"] } } })) {
+    throw new TrainingBusyError("Wait for block review to finish before changing the training block.");
+  }
+}
 
 type BlockRow = Prisma.DevelopmentBlockGetPayload<{ include: { reviews: true } }>;
 const dateLabel = (date: Date) => date.toISOString().slice(0, 10);
@@ -50,6 +57,7 @@ export async function buildBlockPlanningContext(userId: number, direction: Block
       proposal: DevelopmentBlockProposalSchema.parse(row.content) })));
     const profile = AthleteProfileSchema.parse(profileRow?.content ?? emptyAthleteProfile());
     return { ...context,
+      trainingFocus: profile.trainingFocus,
       races: races.map(row => ({ id: row.id, goal: RaceGoalSchema.parse({ ...(row.content as object), date: dateLabel(row.date), importance: row.importance }) })),
       restrictions: profile.restrictions.filter(value => !value.endDate || value.endDate >= parsedDirection.startDate),
       availabilityOverrides: profile.availability.overrides.filter(value => value.date >= parsedDirection.startDate),
@@ -74,9 +82,10 @@ export async function createDevelopmentBlock(userId: number, direction: BlockPla
     await lockUserTraining(database, userId);
     const active = await getActiveDevelopmentBlock(userId, database);
     if (active && options.mode !== "REPLAN") return { existing: active } as const;
+    await requireIdleTraining(userId, database);
     if (options.mode === "REPLAN" && (!active || active.id !== options.expectedBlock?.id || active.revision !== options.expectedBlock.revision)) throw new StaleBlockGenerationError();
     const context = await buildBlockPlanningContext(userId, direction, now, database);
-    if (context.dataQuality.syncInProgress) throw new Error("Finish activity sync before planning a block");
+    if (context.dataQuality.syncInProgress) throw new TrainingBusyError("Finish activity sync before planning a block");
     if (direction.startDate < calendarMonday(localDateAt(now, context.athlete.timeZone))) throw new Error("Cannot create a block in a past week");
     return { context, active } as const;
   }, { timeout: 15000 });
@@ -85,6 +94,7 @@ export async function createDevelopmentBlock(userId: number, direction: BlockPla
   return prisma.$transaction(async database => {
     await lockUserTraining(database, userId);
     const commitNow = options.now ?? new Date();
+    await requireIdleTraining(userId, database);
     const current = await buildBlockPlanningContext(userId, direction, now, database);
     if (localDateAt(commitNow, current.athlete.timeZone) !== localDateAt(now, current.athlete.timeZone) ||
       !isDeepStrictEqual(current, snapshot.context)) throw new StaleBlockGenerationError();

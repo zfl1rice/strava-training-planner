@@ -1,3 +1,39 @@
+# Application status
+
+## Training Plan UI checkpoint
+
+- [x] Persisted Run/Bike/Swim focus preferences, normalized to 100%, independently of weekly-minute goals and availability; future block creation/replanning reads them.
+- [x] Readable saved rationale and progression in collapsed Current emphasis / Week structure sections; explicit strategy updates retain history.
+- [x] Calendar week selection, confirmed Clear This Week with ownership/version/date checks, and protection for past/completed/modified/stopped/locked/feedback-bearing workouts.
+- [x] Completed vs in-progress review styling, paid-usage confirmation, and calendar/plan refresh after clearing.
+- [x] 268 tests across 17 suites, TypeScript, lint and production build; synthetic browser checks for save/reload, review cancellation, safe clearing and mobile layout. No live AI calls or real athlete records changed.
+- [x] [Implementation details, review map, screenshots and limits](training-plan-ui.md). No migration or dependency upgrade required.
+
+## Regeneration and Redis recovery fixes
+
+- [x] Reproduced false cancellation with fractional activity minutes after the Prisma/Postgres snapshot round trip. Snapshot comparisons now tolerate floating-point round-off while preserving exact IDs, dates, text, ordering, and integer values. The same comparison protects persisted block reviews.
+- [x] Confirmed job 41's recorded snapshot now passes freshness comparison at its captured time, without changing the job or athlete data. A new generation request is required; cancelled jobs are not reset.
+- [x] Recovery scans await their bounded Redis initialization before closing connections, preventing late handshake errors from escaping BullMQ after listener cleanup. Worker error listeners attach before asynchronous recovery startup.
+- [x] Generation failures report the saved reason instead of the generic "Generation request is terminal" message.
+- [x] Regression coverage includes fractional-minute generation/regeneration, real-input change detection, persisted review snapshots, and the Redis initialization/close race. No dependency upgrades or schema migrations required.
+- [x] 257 tests across 16 suites pass, including web endpoints -> real BullMQ worker -> mocked OpenAI generation and replacement -> updated calendar. TypeScript, lint, worker compilation, and production web build pass. Restart `npm run dev` and request generation again to load the fixes.
+
+## Resume-ready integration checkpoint
+
+- [x] Existing weekly request/worker/OpenAI path integrated with automatic starter block creation.
+- [x] Durable REVIEW_BLOCK requests, leases, corrections, retries, recovery, and stale-result checks.
+- [x] UI block creation/replacement, review trigger, polling, decision and per-focus guidance.
+- [x] Structured repeats/targets, completion labels, failure messaging and provider provenance.
+- [x] Synthetic read-only demo and four browser-verified screenshots; no authenticated API requests.
+- [x] README, deployment preparation, local configuration check and exact smoke checklist.
+- [x] 252 tests, 21 weekly + 18 strategic + 22 review fixtures, TypeScript, lint and production build.
+- [x] Additive local database migration applied.
+- [ ] User supplies worker OpenAI key and performs live UI generation/review smoke.
+- [ ] User confirms live Strava OAuth/sync on their account.
+- [ ] Explicit public deployment (not requested here).
+
+See [checkpoint report and file map](resume-ready-checkpoint.md), [manual smoke test](local-product-smoke.md), and [deployment](deployment.md). Historical milestone records follow.
+
 # Pre-AI MVP status
 
 ## September 7: immutable BlockReview focus references

@@ -22,10 +22,6 @@ const worker = new Worker(
     settings: { backoffStrategy: stravaBackoff },
   },
 );
-const stopSyncRecovery = startSyncRecovery();
-const { startPlanRecovery } = await import("./plan-recovery.js");
-const stopPlanRecovery = startPlanRecovery();
-
 worker.on("ready", () => console.log(`Worker ready on queue ${QUEUES.jobs}`));
 worker.on("failed", (job, error) => {
   console.error(`Job ${job?.id} failed: ${error.message}`);
@@ -33,6 +29,11 @@ worker.on("failed", (job, error) => {
   // An event from an old execution must not overwrite a newer DB attempt.
 });
 worker.on("error", (error) => console.error("Worker error:", error.message));
+
+// Attach listeners before starting recovery or yielding to another import.
+const stopSyncRecovery = startSyncRecovery();
+const { startPlanRecovery } = await import("./plan-recovery.js");
+const stopPlanRecovery = startPlanRecovery();
 
 let closing = false;
 async function shutdown() {

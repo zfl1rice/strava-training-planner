@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TrainingFocusSchema } from "./training-focus.js";
 import { PlanSportSchema } from "./planner.js";
 import { LocalDateSchema } from "./planning-dates.js";
 
@@ -134,6 +135,7 @@ export const TrainingAdjustmentSchema = z.object({
 }).strict().refine(value => value.endDate >= value.startDate, "Adjustment end must follow its start");
 
 export const AthleteProfileSchema = z.object({
+  trainingFocus: TrainingFocusSchema.optional(),
   version: z.literal(1),
   fitness: FitnessProfileSchema,
   capabilities: z.array(CapabilitySchema).max(30),

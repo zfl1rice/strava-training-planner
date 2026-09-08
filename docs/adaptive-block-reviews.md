@@ -1,3 +1,5 @@
+> Current application checkpoint: [resume-ready integration](resume-ready-checkpoint.md). Live reviews now run through persistent worker jobs and have a UI panel. Earlier milestones below describe their implementation-time limitations.
+
 # Adaptive block-review checkpoint
 
 **Current model contract:** [stable focus IDs](block-review-focus-identity.md).
